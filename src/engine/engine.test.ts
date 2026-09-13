@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { channelAddressId, flatAddressId, pinAddress } from '../model/addressing';
-import { shellUnitCost } from '../model/catalog';
+import { normalizeUrl, safeHref, shellUnitCost } from '../model/catalog';
 import { createEmptyShow } from '../model/defaults';
 import { inKey, nodeKey, outKey, tubeKey } from '../model/endpoints';
 import { controllerFromPreset, presetById } from '../model/presets';
@@ -21,6 +21,7 @@ function cake(id: string, overrides: Partial<Cake> = {}): Cake {
     name: id,
     qtyOwned: 5,
     notes: '',
+    url: '',
     brand: 'Acme',
     shots: 25,
     durationSec: 20,
@@ -40,6 +41,7 @@ function shell(id: string, overrides: Partial<Shell> = {}): Shell {
     name: id,
     qtyOwned: 24,
     notes: '',
+    url: '',
     brand: '',
     effect: 'Peony',
     sizeIn: 1.75,
@@ -56,6 +58,7 @@ const rack: Rack = {
   name: 'Rack 3',
   qtyOwned: 2,
   notes: '',
+  url: '',
   rows: 1,
   cols: 3,
   tubeSizeIn: 1.75,
@@ -296,5 +299,22 @@ describe('show file', () => {
     const show = baseShow();
     expect(parseShow(JSON.parse(JSON.stringify(show)))).toEqual(show);
     expect(() => parseShow({ hello: 1 })).toThrow(/schemaVersion/);
+  });
+
+  it('fills in a blank web link for items saved before links existed', () => {
+    const raw = JSON.parse(JSON.stringify(baseShow()));
+    delete raw.catalog[0].url;
+    expect(parseShow(raw).catalog[0].url).toBe('');
+  });
+});
+
+describe('web links', () => {
+  it('assumes https and only renders http(s) links', () => {
+    expect(normalizeUrl('  example.com/cake ')).toBe('https://example.com/cake');
+    expect(normalizeUrl('http://shop.test')).toBe('http://shop.test');
+    expect(normalizeUrl('')).toBe('');
+    expect(safeHref('https://example.com')).toBe('https://example.com');
+    expect(safeHref('javascript:alert(1)')).toBeNull();
+    expect(safeHref('')).toBeNull();
   });
 });

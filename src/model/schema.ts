@@ -10,6 +10,8 @@ const catalogBase = {
   name: z.string(),
   qtyOwned: z.number().int().min(0),
   notes: z.string().default(''),
+  /** Product page or retailer link. */
+  url: z.string().default(''),
 };
 
 export const cakeSchema = z.object({

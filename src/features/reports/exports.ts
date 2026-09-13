@@ -42,15 +42,15 @@ export async function exportCostXlsx(show: Show, d: Derived) {
   moneyCols(XLSX, cost, [5, 6], header.length + 1);
   XLSX.utils.book_append_sheet(wb, cost, 'Show cost');
 
-  const invRows: (string | number)[][] = [['Kind', 'Name', 'Owned', 'Used', 'Remaining', 'Unit cost', 'Value owned', 'Value used']];
+  const invRows: (string | number)[][] = [['Kind', 'Name', 'Owned', 'Used', 'Remaining', 'Unit cost', 'Value owned', 'Value used', 'Link']];
   for (const item of show.catalog) {
     const use = d.totals.inventory.find((u) => u.catalogId === item.id)?.used ?? 0;
     const unit = itemUnitCost(item);
-    invRows.push([item.kind, item.name, item.qtyOwned, use, item.qtyOwned - use, unit, unit * item.qtyOwned, unit * use]);
+    invRows.push([item.kind, item.name, item.qtyOwned, use, item.qtyOwned - use, unit, unit * item.qtyOwned, unit * use, item.url]);
   }
   invRows.push([], ['TOTAL', '', '', '', '', '', d.cost.inventoryValue, '']);
   const inv = XLSX.utils.aoa_to_sheet(invRows);
-  inv['!cols'] = [{ wch: 8 }, { wch: 32 }, { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
+  inv['!cols'] = [{ wch: 8 }, { wch: 32 }, { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 40 }];
   moneyCols(XLSX, inv, [5, 6, 7], 1);
   XLSX.utils.book_append_sheet(wb, inv, 'Inventory');
 

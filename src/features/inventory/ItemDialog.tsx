@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Button, Checkbox, Field, Modal, NumberInput, Select, TextInput } from '../../components/ui';
-import { shellUnitCost, tubeCount } from '../../model/catalog';
+import { normalizeUrl, shellUnitCost, tubeCount } from '../../model/catalog';
 import { uid } from '../../model/defaults';
 import type { Cake, CatalogItem, Rack, Shell } from '../../model/schema';
 import { upsertCatalogItem } from '../../store/actions';
 import { formatMoney } from '../../lib/format';
 
 export function newCatalogItem(kind: CatalogItem['kind']): CatalogItem {
-  const base = { id: uid('cat'), name: '', qtyOwned: 1, notes: '' };
+  const base = { id: uid('cat'), name: '', qtyOwned: 1, notes: '', url: '' };
   switch (kind) {
     case 'cake':
       return {
@@ -54,7 +54,11 @@ export function ItemDialog({ initial, onClose }: { initial: CatalogItem; onClose
   const title = `${initial.name ? 'Edit' : 'New'} ${item.kind}`;
 
   const save = () => {
-    upsertCatalogItem({ ...item, name: item.name.trim() || `Unnamed ${item.kind}` });
+    upsertCatalogItem({
+      ...item,
+      name: item.name.trim() || `Unnamed ${item.kind}`,
+      url: normalizeUrl(item.url),
+    });
     onClose();
   };
 
@@ -232,6 +236,15 @@ export function ItemDialog({ initial, onClose }: { initial: CatalogItem; onClose
 
         <Field label={item.kind === 'shell' ? 'Shells owned' : 'Quantity owned'}>
           <NumberInput integer min={0} value={item.qtyOwned} onChange={(qtyOwned) => set({ qtyOwned })} />
+        </Field>
+        <Field label="Web link" hint="Product page, retailer or video" className="col-span-2 md:col-span-3">
+          <TextInput
+            type="url"
+            inputMode="url"
+            placeholder="https://"
+            value={item.url}
+            onChange={(url) => set({ url })}
+          />
         </Field>
         <Field label="Notes" className="col-span-2 md:col-span-4">
           <TextInput value={item.notes} onChange={(notes) => set({ notes })} />

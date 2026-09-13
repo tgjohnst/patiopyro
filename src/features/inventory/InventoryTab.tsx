@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import { useState, type ReactNode } from 'react';
 import { Badge, Button, NumberInput, Panel, TextInput } from '../../components/ui';
-import { shellUnitCost, tubeCount } from '../../model/catalog';
+import { safeHref, shellUnitCost, tubeCount } from '../../model/catalog';
 import { uid } from '../../model/defaults';
 import type { CatalogItem, FuseType } from '../../model/schema';
 import {
@@ -72,6 +72,27 @@ function RowActions({ item, onEdit }: { item: CatalogItem; onEdit: () => void })
 
 const td = 'px-2 py-1.5 whitespace-nowrap';
 
+function NameCell({ item }: { item: CatalogItem }) {
+  const href = safeHref(item.url);
+  return (
+    <td className={clsx(td, 'font-medium')}>
+      {item.name}
+      {href && (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="ml-1.5 text-xs text-sky-400 hover:text-sky-300"
+          title={href}
+          aria-label={`Open link for ${item.name}`}
+        >
+          ↗
+        </a>
+      )}
+    </td>
+  );
+}
+
 export function InventoryTab() {
   const catalog = useShow((s) => s.catalog);
   const { totals } = useDerived();
@@ -106,7 +127,7 @@ export function InventoryTab() {
           <Table head={['Name', 'Brand', 'Grade', 'Shots', 'Duration', 'Lead', 'Exit fuse', 'Cost', 'Used / owned', 'Effect', '']}>
             {cakes.map((c) => (
               <tr key={c.id} className="hover:bg-slate-800/30">
-                <td className={clsx(td, 'font-medium')}>{c.name}</td>
+                <NameCell item={c} />
                 <td className={td}>{c.brand}</td>
                 <td className={td}>
                   <Badge tone={c.grade === '1.4G Pro-line' ? 'sky' : 'slate'}>{c.grade}</Badge>
@@ -134,7 +155,7 @@ export function InventoryTab() {
           <Table head={['Name', 'Brand', 'Effect', 'Size', 'Light→burst', 'Pricing', 'Per shell', 'Used / owned', '']}>
             {shells.map((s) => (
               <tr key={s.id} className="hover:bg-slate-800/30">
-                <td className={clsx(td, 'font-medium')}>{s.name}</td>
+                <NameCell item={s} />
                 <td className={td}>{s.brand}</td>
                 <td className="max-w-64 truncate px-2 py-1.5 text-slate-400">{s.effect}</td>
                 <td className={td}>{s.sizeIn}"</td>
@@ -167,7 +188,7 @@ export function InventoryTab() {
           <Table head={['Name', 'Layout', 'Tubes', 'Tube size', 'Spacing', 'Cost', 'Used / owned', '']}>
             {racks.map((r) => (
               <tr key={r.id} className="hover:bg-slate-800/30">
-                <td className={clsx(td, 'font-medium')}>{r.name}</td>
+                <NameCell item={r} />
                 <td className={td}>
                   {r.rows} × {r.cols}
                 </td>

@@ -21,14 +21,19 @@ test('build a show from scratch, undo, autosave and print', async ({ page }) => 
   await page.getByRole('button', { name: '+ Cake' }).click();
   await page.getByRole('dialog').getByLabel('Name').fill('Test Cake');
   await page.getByRole('dialog').getByLabel('Cost (each)').fill('50');
+  await page.getByRole('dialog').getByLabel('Web link').fill('example.com/test-cake');
   await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByRole('cell', { name: 'Test Cake' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: /^Test Cake/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Open link for Test Cake' })).toHaveAttribute(
+    'href',
+    'https://example.com/test-cake',
+  );
 
   // Delete, then undo
   await page.getByRole('row', { name: /Test Cake/ }).getByRole('button', { name: 'Delete' }).click();
-  await expect(page.getByRole('cell', { name: 'Test Cake' })).toHaveCount(0);
+  await expect(page.getByRole('cell', { name: /^Test Cake/ })).toHaveCount(0);
   await page.getByRole('button', { name: /Undo/ }).click();
-  await expect(page.getByRole('cell', { name: 'Test Cake' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: /^Test Cake/ })).toBeVisible();
 
   // Firing system: one receiver
   await page.getByRole('button', { name: 'Firing System', exact: true }).click();
@@ -61,7 +66,7 @@ test('build a show from scratch, undo, autosave and print', async ({ page }) => 
   // Autosave survives a reload
   await page.reload();
   await page.getByRole('button', { name: 'Inventory', exact: true }).click();
-  await expect(page.getByRole('cell', { name: 'Test Cake' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: /^Test Cake/ })).toBeVisible();
 
   expect(errors).toEqual([]);
 });
