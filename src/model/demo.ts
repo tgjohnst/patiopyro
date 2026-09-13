@@ -1,11 +1,11 @@
 import { flatAddressId } from './addressing';
 import { createEmptyShow, uid } from './defaults';
 import { inKey, nodeKey, outKey, tubeKey } from './endpoints';
+import { controllerFromPreset, presetById } from './presets';
 import type { Cake, FiringModule, Rack, Shell, Show } from './schema';
 
 const FAST = 'fuse-fast-visco';
 const GREEN = 'fuse-green-visco';
-const QUICK = 'fuse-quickmatch';
 
 export function createDemoShow(): Show {
   const s = createEmptyShow();
@@ -13,7 +13,7 @@ export function createDemoShow(): Show {
     name: 'Backyard Fourth (demo)',
     date: '2026-07-04',
     location: 'Back yard',
-    notes: 'Demo show: chained cakes, a shell rack fused in series, and a linked finale cue.',
+    notes: 'Demo show: chained cakes, a shell rack fused in series, and a linked finale cue on Bilusocn 4-cue receivers.',
   };
 
   const [posA] = s.positions;
@@ -37,12 +37,42 @@ export function createDemoShow(): Show {
     unitCost: 45,
     leadDelaySec: 4,
     hasExitFuse: true,
+    weightClass: null,
+    categories: [],
     ...extra,
   });
-  const nightOwl = cake('Night Owl', { shots: 25, durationSec: 30, effectNotes: 'Gold brocade to crackle' });
-  const willow = cake('Crackling Willow', { shots: 16, durationSec: 20, unitCost: 30, effectNotes: 'Hanging willow' });
-  const comets = cake('Blue Comets', { shots: 36, durationSec: 25, unitCost: 55, effectNotes: 'Blue comet fans' });
-  const strobe = cake('Strobe Fan', { shots: 49, durationSec: 28, unitCost: 65, effectNotes: 'White strobe Z-fan' });
+  const nightOwl = cake('Night Owl', {
+    shots: 25,
+    durationSec: 30,
+    effectNotes: 'Gold brocade to crackle',
+    weightClass: '500g',
+    categories: ['Big breaks', 'Crackle'],
+    notes: 'Opener',
+  });
+  const willow = cake('Crackling Willow', {
+    shots: 16,
+    durationSec: 20,
+    unitCost: 30,
+    effectNotes: 'Hanging willow',
+    weightClass: '200g',
+    categories: ['Small', 'Willow'],
+  });
+  const comets = cake('Blue Comets', {
+    shots: 36,
+    durationSec: 25,
+    unitCost: 55,
+    effectNotes: 'Blue comet fans',
+    weightClass: '350g',
+    categories: ['Medium', 'Fan', 'Comets'],
+  });
+  const strobe = cake('Strobe Fan', {
+    shots: 49,
+    durationSec: 28,
+    unitCost: 65,
+    effectNotes: 'White strobe Z-fan',
+    weightClass: '500g',
+    categories: ['Zipper', 'Strobe'],
+  });
   const finale = cake('Pro Finale 500g', {
     qtyOwned: 1,
     shots: 100,
@@ -51,6 +81,9 @@ export function createDemoShow(): Show {
     grade: '1.4G Pro-line',
     hasExitFuse: false,
     effectNotes: 'Multicolor crossette finale',
+    weightClass: '1000g+',
+    categories: ['Finale', 'Long', 'NOAB'],
+    notes: 'Stake down on a board; tall and heavy',
   });
   const peony: Shell = {
     id: uid('cat'),
@@ -85,7 +118,7 @@ export function createDemoShow(): Show {
     kind: 'rack',
     name: 'HDPE 3×3 rack',
     qtyOwned: 2,
-    notes: '',
+    notes: 'Screw to a base board before loading',
     url: '',
     rows: 3,
     cols: 3,
@@ -95,21 +128,23 @@ export function createDemoShow(): Show {
   };
   s.catalog = [nightOwl, willow, comets, strobe, finale, peony, brocade, rack];
 
+  s.firing.controller = controllerFromPreset(presetById('bilusocn'));
   const mod = (name: string, positionId: string, startCue: number): FiringModule => ({
     id: uid('mod'),
     name,
-    modelName: 'Generic 12-cue receiver',
-    cueCount: 12,
+    modelName: 'Bilusocn 4-cue receiver',
+    cueCount: 4,
     positionId,
     startCue,
     bankChannels: [1],
     pinOverrides: {},
   });
   const m1 = mod('M1', posA.id, 1);
-  const m2 = mod('M2', posB.id, 13);
-  const m3 = mod('M3', posC.id, 25);
-  m3.pinOverrides['12'] = flatAddressId(12); // linked with M1 cue 12 for the finale
-  s.firing.modules = [m1, m2, m3];
+  const m2 = mod('M2', posA.id, 5);
+  const m3 = mod('M3', posB.id, 9);
+  const m4 = mod('M4', posC.id, 13);
+  m4.pinOverrides['1'] = flatAddressId(5); // coded to cue 5 with M2 for the finale
+  s.firing.modules = [m1, m2, m3, m4];
 
   const place = (catalogId: string, positionId: string, x: number, y: number, tubes?: (string | null)[]) => {
     const id = uid('pl');
@@ -124,7 +159,7 @@ export function createDemoShow(): Show {
   const seg = (positionId: string, from: string, to: string, fuseTypeId: string, lengthIn: number) =>
     s.fuseSegments.push({ id: uid('fz'), positionId, from, to, fuseTypeId, lengthIn });
 
-  // Left: two chained cakes, a rack in three series runs, and a finale cake.
+  // Left: two chained cakes and a rack in three series runs on M1, and a finale cake on M2.
   const owl = place(nightOwl.id, posA.id, 40, 220);
   const wil = place(willow.id, posA.id, 340, 220);
   seg(posA.id, igniter(posA.id, m1.id, 1, 60, 40), inKey(owl), GREEN, 2);
@@ -133,37 +168,37 @@ export function createDemoShow(): Show {
   const tubes = [peony.id, brocade.id, peony.id, brocade.id, peony.id, brocade.id, peony.id, peony.id, peony.id];
   const rk = place(rack.id, posA.id, 560, 200, tubes);
   [2, 3, 4].forEach((pin, row) => {
-    seg(posA.id, igniter(posA.id, m1.id, pin, 520 + row * 90, 40), tubeKey(rk, row * 3), QUICK, 3);
+    seg(posA.id, igniter(posA.id, m1.id, pin, 520 + row * 90, 40), tubeKey(rk, row * 3), FAST, 1);
     seg(posA.id, tubeKey(rk, row * 3), tubeKey(rk, row * 3 + 1), FAST, 2.5);
     seg(posA.id, tubeKey(rk, row * 3 + 1), tubeKey(rk, row * 3 + 2), FAST, 2.5);
   });
   const strobeA = place(strobe.id, posA.id, 340, 460);
-  seg(posA.id, igniter(posA.id, m1.id, 12, 60, 480), inKey(strobeA), GREEN, 2);
+  seg(posA.id, igniter(posA.id, m2.id, 1, 60, 480), inKey(strobeA), GREEN, 2);
 
-  // Center: two comet cakes fanned out from one junction, then a strobe cake.
+  // Center: two comet cakes fanned out from one junction on equal fast visco runs, then a strobe cake.
   const c1 = place(comets.id, posB.id, 80, 260);
   const c2 = place(comets.id, posB.id, 340, 260);
   const j = uid('jn');
   s.fuseNodes.push({ id: j, kind: 'junction', positionId: posB.id, x: 260, y: 150 });
-  seg(posB.id, igniter(posB.id, m2.id, 1, 240, 30), nodeKey(j), GREEN, 2);
-  seg(posB.id, nodeKey(j), inKey(c1), QUICK, 12);
-  seg(posB.id, nodeKey(j), inKey(c2), QUICK, 12);
+  seg(posB.id, igniter(posB.id, m3.id, 1, 240, 30), nodeKey(j), GREEN, 2);
+  seg(posB.id, nodeKey(j), inKey(c1), FAST, 6);
+  seg(posB.id, nodeKey(j), inKey(c2), FAST, 6);
   const strobeB = place(strobe.id, posB.id, 600, 260);
-  seg(posB.id, igniter(posB.id, m2.id, 2, 620, 30), inKey(strobeB), GREEN, 2);
+  seg(posB.id, igniter(posB.id, m3.id, 2, 620, 30), inKey(strobeB), GREEN, 2);
 
-  // Right: the finale, on a cue linked with M1 cue 12.
+  // Right: the finale, on M4 coded to the same remote cue as M2 cue 1.
   const fin = place(finale.id, posC.id, 120, 240);
-  seg(posC.id, igniter(posC.id, m3.id, 12, 140, 40), inKey(fin), GREEN, 2);
+  seg(posC.id, igniter(posC.id, m4.id, 1, 140, 40), inKey(fin), GREEN, 2);
 
   s.cueTimes = {
     [flatAddressId(1)]: 0,
     [flatAddressId(2)]: 42,
     [flatAddressId(3)]: 50,
     [flatAddressId(4)]: 58,
-    [flatAddressId(13)]: 70,
-    [flatAddressId(14)]: 98,
-    [flatAddressId(12)]: 125,
+    [flatAddressId(9)]: 70,
+    [flatAddressId(10)]: 98,
+    [flatAddressId(5)]: 125,
   };
-  s.cueNotes = { [flatAddressId(12)]: 'Finale — both sides together' };
+  s.cueNotes = { [flatAddressId(5)]: 'Finale — both sides together' };
   return s;
 }

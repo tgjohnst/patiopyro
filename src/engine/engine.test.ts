@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { channelAddressId, flatAddressId, pinAddress } from '../model/addressing';
 import { normalizeUrl, safeHref, shellUnitCost } from '../model/catalog';
+import { DEFAULT_WORKSHEET_SUPPLIES } from '../model/constants';
 import { createEmptyShow } from '../model/defaults';
+import { createDemoShow } from '../model/demo';
 import { inKey, nodeKey, outKey, tubeKey } from '../model/endpoints';
 import { controllerFromPreset, presetById } from '../model/presets';
 import type { Cake, FiringModule, Rack, Shell, Show } from '../model/schema';
@@ -30,6 +32,8 @@ function cake(id: string, overrides: Partial<Cake> = {}): Cake {
     unitCost: 40,
     leadDelaySec: 3,
     hasExitFuse: true,
+    weightClass: null,
+    categories: [],
     ...overrides,
   };
 }
@@ -305,6 +309,33 @@ describe('show file', () => {
     const raw = JSON.parse(JSON.stringify(baseShow()));
     delete raw.catalog[0].url;
     expect(parseShow(raw).catalog[0].url).toBe('');
+  });
+
+  it('fills in cake classification and worksheet supplies for older files', () => {
+    const raw = JSON.parse(JSON.stringify(baseShow()));
+    delete raw.catalog[0].weightClass;
+    delete raw.catalog[0].categories;
+    delete raw.settings.worksheetSupplies;
+    const show = parseShow(raw);
+    expect(show.catalog[0]).toMatchObject({ weightClass: null, categories: [] });
+    expect(show.settings.worksheetSupplies).toEqual(DEFAULT_WORKSHEET_SUPPLIES);
+  });
+
+  it('rejects unknown cake categories and weight classes', () => {
+    const raw = JSON.parse(JSON.stringify(baseShow()));
+    raw.catalog[0].weightClass = '750g';
+    expect(() => parseShow(raw)).toThrow(/weightClass/);
+  });
+});
+
+describe('demo show', () => {
+  it('uses Bilusocn 4-cue receivers, no quickmatch, and loads cleanly', () => {
+    const show = createDemoShow();
+    expect(show.firing.controller.presetId).toBe('bilusocn');
+    expect(show.firing.modules.every((m) => m.cueCount === 4)).toBe(true);
+    expect(show.fuseSegments.some((f) => f.fuseTypeId === 'fuse-quickmatch')).toBe(false);
+    expect(parseShow(JSON.parse(JSON.stringify(show)))).toEqual(show);
+    expect(validateShow(show, computeTiming(show), computeTotals(show)).filter((i) => i.level === 'error')).toEqual([]);
   });
 });
 

@@ -1,6 +1,8 @@
+import clsx from 'clsx';
 import { useState } from 'react';
 import { Button, Checkbox, Field, Modal, NumberInput, Select, TextInput } from '../../components/ui';
-import { normalizeUrl, shellUnitCost, tubeCount } from '../../model/catalog';
+import { CATEGORY_CLASS, normalizeUrl, shellUnitCost, tubeCount } from '../../model/catalog';
+import { CAKE_CATEGORIES, CAKE_WEIGHT_CLASSES } from '../../model/constants';
 import { uid } from '../../model/defaults';
 import type { Cake, CatalogItem, Rack, Shell } from '../../model/schema';
 import { upsertCatalogItem } from '../../store/actions';
@@ -21,6 +23,8 @@ export function newCatalogItem(kind: CatalogItem['kind']): CatalogItem {
         unitCost: 0,
         leadDelaySec: 4,
         hasExitFuse: true,
+        weightClass: null,
+        categories: [],
       } satisfies Cake;
     case 'shell':
       return {
@@ -104,6 +108,16 @@ export function ItemDialog({ initial, onClose }: { initial: CatalogItem; onClose
                 ]}
               />
             </Field>
+            <Field label="Weight class" hint="Net explosive weight">
+              <Select
+                value={item.weightClass ?? ''}
+                onChange={(v) => set({ weightClass: (v || null) as Cake['weightClass'] })}
+                options={[
+                  { value: '', label: 'Unclassified' },
+                  ...CAKE_WEIGHT_CLASSES.map((w) => ({ value: w, label: w })),
+                ]}
+              />
+            </Field>
             <Field label="Shots">
               <NumberInput integer min={0} value={item.shots} onChange={(shots) => set({ shots })} />
             </Field>
@@ -126,6 +140,34 @@ export function ItemDialog({ initial, onClose }: { initial: CatalogItem; onClose
                 onChange={(hasExitFuse) => set({ hasExitFuse })}
               />
             </div>
+            <fieldset className="col-span-2 flex flex-col gap-1 text-xs md:col-span-4">
+              <legend className="mb-1 font-medium text-slate-400">Categories</legend>
+              <div className="flex flex-wrap gap-1.5">
+                {CAKE_CATEGORIES.map((cat) => {
+                  const on = item.categories.includes(cat);
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() =>
+                        set({
+                          categories: on
+                            ? item.categories.filter((c) => c !== cat)
+                            : CAKE_CATEGORIES.filter((c) => c === cat || item.categories.includes(c)),
+                        })
+                      }
+                      className={clsx(
+                        'rounded-full px-2.5 py-1 text-xs font-medium ring-1 transition-colors',
+                        on ? CATEGORY_CLASS[cat] : 'bg-transparent text-slate-500 ring-slate-700 hover:text-slate-300',
+                      )}
+                    >
+                      {cat}
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
           </>
         )}
 

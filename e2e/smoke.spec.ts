@@ -27,11 +27,12 @@ test('demo show: layout, fuse, timeline, reports and exports', async ({ page }) 
   await page.getByTestId('inv-Blue Comets').dragTo(page.getByTestId('position-canvas'), { targetPosition: { x: 300, y: 520 } });
   await expect(page.locator('.react-flow__node')).toHaveCount(nodesBefore + 1);
 
-  // Add an igniter and draw fuse from it to the new cake's lead fuse
+  // Add an igniter on M2 (M1's four cues are all wired) and draw fuse from it to the new cake's lead fuse
+  await page.getByRole('combobox', { name: 'Module', exact: true }).first().selectOption({ label: 'M2' });
   await page.getByRole('button', { name: '⚡ Add igniter' }).click();
   await expect(page.locator('.react-flow__node')).toHaveCount(nodesBefore + 2);
   const edgesBefore = await page.locator('.react-flow__edge').count();
-  const igniter = page.locator('.react-flow__node-igniter', { hasText: 'M1 #5' }).locator('.react-flow__handle');
+  const igniter = page.locator('.react-flow__node-igniter', { hasText: 'M2 #2' }).locator('.react-flow__handle');
   const lead = page.getByTestId('node-Blue Comets').locator('[data-handleid="in"]');
   const a = (await igniter.boundingBox())!;
   const b = (await lead.boundingBox())!;
@@ -41,7 +42,7 @@ test('demo show: layout, fuse, timeline, reports and exports', async ({ page }) 
   await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 5 });
   await page.mouse.up();
   await expect(page.locator('.react-flow__edge')).toHaveCount(edgesBefore + 1);
-  await expect(page.getByTestId('node-Blue Comets')).toContainText('Cue 5');
+  await expect(page.getByTestId('node-Blue Comets')).toContainText('Cue 6');
   await shot(page, '4-positions-wired');
 
   // Rack editor
@@ -54,9 +55,9 @@ test('demo show: layout, fuse, timeline, reports and exports', async ({ page }) 
   await expect(page.getByTestId('module-M1')).toBeVisible();
   await shot(page, '6-firing');
 
-  // Timeline: drag cue 13 right by ~10 s
+  // Timeline: drag cue 9 right by ~10 s
   await page.getByRole('button', { name: 'Timeline', exact: true }).click();
-  const cue = page.getByTestId('cue-Cue 13');
+  const cue = page.getByTestId('cue-Cue 9');
   await expect(cue).toBeVisible();
   const c = (await cue.boundingBox())!;
   await page.mouse.move(c.x + c.width / 2, c.y + 20);

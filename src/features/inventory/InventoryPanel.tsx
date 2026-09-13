@@ -10,7 +10,7 @@ const KIND_ICON: Record<CatalogItem['kind'], string> = { cake: '▦', shell: '�
 function describe(item: CatalogItem) {
   switch (item.kind) {
     case 'cake':
-      return `${item.shots} shots · ${item.durationSec}s${item.grade === '1.4G Pro-line' ? ' · Pro-line' : ''}`;
+      return `${item.weightClass ? `${item.weightClass} · ` : ''}${item.shots} shots · ${item.durationSec}s${item.grade === '1.4G Pro-line' ? ' · Pro-line' : ''}`;
     case 'shell':
       return `${item.sizeIn}" · ${item.effect}`;
     case 'rack':

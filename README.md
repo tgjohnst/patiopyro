@@ -16,10 +16,11 @@ There is no server. Your show autosaves in the browser, and you can save or open
 
 - **Inventory**
   - Cakes: shots, duration, lead delay, exit fuse, 1.4G / 1.4G Pro-line grade, brand, cost.
+  - Cake weight class (200g, 350g, 500g, 1000g+) and color-coded category labels (big breaks, small, medium, long, finale, zipper, NOAB, fan, barrage and more).
   - Shells: effect, size, light-to-burst time, per-shell or bulk-case pricing.
   - Racks: rows × tubes, tube size and spacing.
-  - Used vs. owned counts for every item.
-- **Fuse library:** green visco, fast visco, time fuse, black match and quickmatch, with editable burn rates and roll pricing. Pick the default type, set any run's type individually, or apply one type to a whole position.
+  - Used vs. owned counts and notes for every item.
+- **Fuse library:** green visco, fast visco, time fuse, black match and quickmatch, with editable burn rates and roll pricing (20 ft rolls by default). Pick the default type, set any run's type individually, or apply one type to a whole position.
 - **Site map:** a top-down, to-scale yard.
   - Drag positions and the audience line.
   - Safety-radius circles and distance-to-audience labels.
@@ -43,7 +44,7 @@ There is no server. Your show autosaves in the browser, and you can save or open
   - Checks: over-allocated inventory, unconnected items, too many igniters per cue, cues out of range, and positions too close to the audience.
   - Show cost, plus inventory value.
 - **Exports:**
-  - **Setup worksheet** (print / save as PDF): shopping list, module map, and per-position placement checklists, rack loading diagrams and step-by-step fuse chains.
+  - **Setup worksheet** (print / save as PDF): shopping list with a supplies checklist (fuse tape, fuse cutter, cling film, PPE and stabilization supplies by default; edit it in Settings), module map, and per-position placement checklists, rack loading diagrams and step-by-step fuse chains.
   - **Cost spreadsheet** (`.xlsx` with cost, inventory, fuse and cue sheets, or `.csv`).
   - **Show plan** (print / save as PDF): a large-type cue sheet with times and gaps.
   - **Show mode:** a full-screen countdown to the next cue for running the show.

@@ -108,6 +108,15 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             onChange={(includeRacksInCost) => updateSettings({ includeRacksInCost })}
           />
         </div>
+
+        <h3 className="col-span-full mt-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">Worksheet</h3>
+        <Field label="Supplies checklist" hint="One item per line. Printed under shopping & prep." className="col-span-full">
+          <textarea
+            className="min-h-28 w-full rounded-md border border-slate-700 bg-slate-900 p-2 text-sm focus:border-amber-500 focus:outline-none"
+            value={settings.worksheetSupplies.join('\n')}
+            onChange={(e) => updateSettings({ worksheetSupplies: e.target.value.split('\n') })}
+          />
+        </Field>
       </div>
     </Modal>
   );

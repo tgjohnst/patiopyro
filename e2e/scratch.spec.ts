@@ -22,7 +22,15 @@ test('build a show from scratch, undo, autosave and print', async ({ page }) => 
   await page.getByRole('dialog').getByLabel('Name').fill('Test Cake');
   await page.getByRole('dialog').getByLabel('Cost (each)').fill('50');
   await page.getByRole('dialog').getByLabel('Web link').fill('example.com/test-cake');
+  await page.getByRole('dialog').getByLabel('Weight class').selectOption('500g');
+  await page.getByRole('dialog').getByRole('button', { name: 'Finale' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Zipper' }).click();
+  await page.getByRole('dialog').getByRole('textbox', { name: 'Notes', exact: true }).fill('Bought at the tent sale');
   await page.getByRole('button', { name: 'Save' }).click();
+  const cakeRow = page.getByRole('row', { name: /Test Cake/ });
+  await expect(cakeRow).toContainText('500g');
+  await expect(cakeRow).toContainText('FinaleZipper');
+  await expect(cakeRow).toContainText('Bought at the tent sale');
   await expect(page.getByRole('cell', { name: /^Test Cake/ })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Open link for Test Cake' })).toHaveAttribute(
     'href',
@@ -62,6 +70,9 @@ test('build a show from scratch, undo, autosave and print', async ({ page }) => 
   await page.getByRole('button', { name: '🖨 Worksheet PDF' }).click();
   await page.waitForFunction(() => (window as unknown as { __printed: number }).__printed === 1);
   await expect(page.locator('.print-root')).toContainText('Setup worksheet');
+  for (const supply of ['Fuse tape', 'Fuse cutter', 'Cling film', 'PPE', 'Stabilization']) {
+    await expect(page.locator('.print-root')).toContainText(supply);
+  }
 
   // Autosave survives a reload
   await page.reload();

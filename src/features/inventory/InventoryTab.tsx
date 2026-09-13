@@ -1,9 +1,9 @@
 import clsx from 'clsx';
 import { useState, type ReactNode } from 'react';
 import { Badge, Button, NumberInput, Panel, TextInput } from '../../components/ui';
-import { safeHref, shellUnitCost, tubeCount } from '../../model/catalog';
+import { CATEGORY_CLASS, safeHref, shellUnitCost, tubeCount } from '../../model/catalog';
 import { uid } from '../../model/defaults';
-import type { CatalogItem, FuseType } from '../../model/schema';
+import type { Cake, CatalogItem, FuseType } from '../../model/schema';
 import {
   deleteCatalogItem,
   deleteFuseType,
@@ -72,6 +72,29 @@ function RowActions({ item, onEdit }: { item: CatalogItem; onEdit: () => void })
 
 const td = 'px-2 py-1.5 whitespace-nowrap';
 
+function NotesCell({ notes }: { notes: string }) {
+  return (
+    <td className="max-w-64 truncate px-2 py-1.5 text-slate-400" title={notes || undefined}>
+      {notes}
+    </td>
+  );
+}
+
+function CategoryLabels({ categories }: { categories: Cake['categories'] }) {
+  return (
+    <div className="flex flex-wrap gap-1">
+      {categories.map((cat) => (
+        <span
+          key={cat}
+          className={clsx('rounded-full px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap ring-1', CATEGORY_CLASS[cat])}
+        >
+          {cat}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function NameCell({ item }: { item: CatalogItem }) {
   const href = safeHref(item.url);
   return (
@@ -124,13 +147,17 @@ export function InventoryTab() {
         {cakes.length === 0 ? (
           <p className="text-sm text-slate-500">No cakes yet.</p>
         ) : (
-          <Table head={['Name', 'Brand', 'Grade', 'Shots', 'Duration', 'Lead', 'Exit fuse', 'Cost', 'Used / owned', 'Effect', '']}>
+          <Table head={['Name', 'Brand', 'Grade', 'Weight', 'Categories', 'Shots', 'Duration', 'Lead', 'Exit fuse', 'Cost', 'Used / owned', 'Effect', 'Notes', '']}>
             {cakes.map((c) => (
               <tr key={c.id} className="hover:bg-slate-800/30">
                 <NameCell item={c} />
                 <td className={td}>{c.brand}</td>
                 <td className={td}>
                   <Badge tone={c.grade === '1.4G Pro-line' ? 'sky' : 'slate'}>{c.grade}</Badge>
+                </td>
+                <td className={td}>{c.weightClass ?? '—'}</td>
+                <td className="min-w-40 px-2 py-1.5">
+                  <CategoryLabels categories={c.categories} />
                 </td>
                 <td className={td}>{c.shots}</td>
                 <td className={td}>{formatTime(c.durationSec, 0)}</td>
@@ -141,6 +168,7 @@ export function InventoryTab() {
                   <UseBadge used={used(c.id)} owned={c.qtyOwned} />
                 </td>
                 <td className="max-w-64 truncate px-2 py-1.5 text-slate-400">{c.effectNotes}</td>
+                <NotesCell notes={c.notes} />
                 <RowActions item={c} onEdit={() => setEditing(c)} />
               </tr>
             ))}
@@ -152,7 +180,7 @@ export function InventoryTab() {
         {shells.length === 0 ? (
           <p className="text-sm text-slate-500">No shells yet. Add single shells or bulk cases.</p>
         ) : (
-          <Table head={['Name', 'Brand', 'Effect', 'Size', 'Light→burst', 'Pricing', 'Per shell', 'Used / owned', '']}>
+          <Table head={['Name', 'Brand', 'Effect', 'Size', 'Light→burst', 'Pricing', 'Per shell', 'Used / owned', 'Notes', '']}>
             {shells.map((s) => (
               <tr key={s.id} className="hover:bg-slate-800/30">
                 <NameCell item={s} />
@@ -174,6 +202,7 @@ export function InventoryTab() {
                     </span>
                   )}
                 </td>
+                <NotesCell notes={s.notes} />
                 <RowActions item={s} onEdit={() => setEditing(s)} />
               </tr>
             ))}
@@ -185,7 +214,7 @@ export function InventoryTab() {
         {racks.length === 0 ? (
           <p className="text-sm text-slate-500">No racks yet.</p>
         ) : (
-          <Table head={['Name', 'Layout', 'Tubes', 'Tube size', 'Spacing', 'Cost', 'Used / owned', '']}>
+          <Table head={['Name', 'Layout', 'Tubes', 'Tube size', 'Spacing', 'Cost', 'Used / owned', 'Notes', '']}>
             {racks.map((r) => (
               <tr key={r.id} className="hover:bg-slate-800/30">
                 <NameCell item={r} />
@@ -199,6 +228,7 @@ export function InventoryTab() {
                 <td className={td}>
                   <UseBadge used={used(r.id)} owned={r.qtyOwned} />
                 </td>
+                <NotesCell notes={r.notes} />
                 <RowActions item={r} onEdit={() => setEditing(r)} />
               </tr>
             ))}
@@ -231,8 +261,8 @@ function FuseLibrary() {
               id: uid('fuse'),
               name: 'New fuse',
               burnRateSecPerFt: 30,
-              rollLengthFt: 50,
-              rollCost: 15,
+              rollLengthFt: 20,
+              rollCost: 6,
               color: '#38bdf8',
               notes: '',
             })

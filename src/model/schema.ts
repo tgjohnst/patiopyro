@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CAKE_CATEGORIES, CAKE_WEIGHT_CLASSES, DEFAULT_WORKSHEET_SUPPLIES } from './constants';
 
 export const SCHEMA_VERSION = 1;
 
@@ -27,6 +28,9 @@ export const cakeSchema = z.object({
   leadDelaySec: nonNeg,
   /** Cake has an exit fuse that lights after the last shot. */
   hasExitFuse: z.boolean(),
+  /** Net explosive weight class; null when unclassified. */
+  weightClass: z.enum(CAKE_WEIGHT_CLASSES).nullable().default(null),
+  categories: z.array(z.enum(CAKE_CATEGORIES)).default([]),
 });
 
 export const shellPricingSchema = z.discriminatedUnion('mode', [
@@ -170,6 +174,8 @@ export const settingsSchema = z.object({
   igniterUnitCost: nonNeg,
   includeRacksInCost: z.boolean(),
   snapSec: z.number().positive(),
+  /** Extra checklist lines printed under shopping & prep on the setup worksheet. */
+  worksheetSupplies: z.array(z.string()).default(() => [...DEFAULT_WORKSHEET_SUPPLIES]),
 });
 
 export const showSchema = z.object({

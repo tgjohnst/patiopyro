@@ -101,6 +101,17 @@ export function Worksheet() {
                 <td className="py-0.5">{box}Firing modules</td>
                 <td className="text-right">{show.firing.modules.length}</td>
               </tr>
+              {show.settings.worksheetSupplies
+                .map((line) => line.trim())
+                .filter(Boolean)
+                .map((line, i) => (
+                  <tr key={i} className="border-b border-gray-300">
+                    <td className="py-0.5" colSpan={2}>
+                      {box}
+                      {line}
+                    </td>
+                  </tr>
+                ))}
               <tr className="border-b border-gray-300">
                 <td className="py-0.5">Cues used</td>
                 <td className="text-right">
