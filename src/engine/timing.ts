@@ -1,11 +1,25 @@
 import { pinAddress } from '../model/addressing';
+import {
+  effectDurationSec,
+  isFuseable,
+  isTubeLoadable,
+  subCakeEndSec,
+  type FuseableItem,
+  type TubeItem,
+} from '../model/catalog';
 import { inKey, nodeKey, outKey, tubeKey } from '../model/endpoints';
-import type { CatalogItem, FuseType, Show } from '../model/schema';
+import type { FuseType, Show } from '../model/schema';
 
 export interface Arrival {
   t: number;
   addressId: string;
   igniterId: string;
+}
+
+export interface EffectSection {
+  name: string;
+  startSec: number;
+  endSec: number;
 }
 
 export interface EffectTiming {
@@ -16,10 +30,12 @@ export interface EffectTiming {
   catalogId: string;
   positionId: string;
   name: string;
-  kind: 'cake' | 'shell';
+  kind: FuseableItem['kind'] | TubeItem['kind'];
   igniteSec: number;
   startSec: number;
   endSec: number;
+  /** Compound cakes: when each sub cake fires. Empty otherwise. */
+  sections: EffectSection[];
   addressId: string;
   igniterId: string;
 }
@@ -114,17 +130,15 @@ export function computeTiming(show: Show): TimingResult {
     key: string,
     placedId: string,
     tubeIndex: number | null,
-    item: CatalogItem,
+    item: FuseableItem | TubeItem,
     positionId: string,
   ) => {
-    if (item.kind === 'rack') return;
     const a = arrivals.get(key);
     if (!a) {
       unscheduled.push({ key, placedId, tubeIndex, name: item.name, positionId });
       return;
     }
     const startSec = a.t + item.leadDelaySec;
-    const dur = item.kind === 'cake' ? item.durationSec : item.burstDurationSec;
     effects.push({
       key,
       placedId,
@@ -135,7 +149,15 @@ export function computeTiming(show: Show): TimingResult {
       kind: item.kind,
       igniteSec: a.t,
       startSec,
-      endSec: startSec + dur,
+      endSec: startSec + effectDurationSec(item),
+      sections:
+        item.kind === 'cake'
+          ? item.subCakes.map((sub) => ({
+              name: sub.name,
+              startSec: startSec + sub.offsetSec,
+              endSec: startSec + subCakeEndSec(sub),
+            }))
+          : [],
       addressId: a.addressId,
       igniterId: a.igniterId,
     });
@@ -144,11 +166,11 @@ export function computeTiming(show: Show): TimingResult {
   for (const p of show.placed) {
     const item = catalog.get(p.catalogId);
     if (!item) continue;
-    if (item.kind === 'cake') addEffect(inKey(p.id), p.id, null, item, p.positionId);
+    if (isFuseable(item)) addEffect(inKey(p.id), p.id, null, item, p.positionId);
     if (item.kind === 'rack') {
-      (p.tubes ?? []).forEach((shellId, i) => {
-        const shell = shellId ? catalog.get(shellId) : undefined;
-        if (shell) addEffect(tubeKey(p.id, i), p.id, i, shell, p.positionId);
+      (p.tubes ?? []).forEach((loadedId, i) => {
+        const loaded = loadedId ? catalog.get(loadedId) : undefined;
+        if (isTubeLoadable(loaded)) addEffect(tubeKey(p.id, i), p.id, i, loaded, p.positionId);
       });
     }
   }

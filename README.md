@@ -16,7 +16,10 @@ There is no server. Your show autosaves in the browser, and you can save or open
 
 - **Inventory**
   - Cakes: shots, duration, lead delay, exit fuse, 1.4G / 1.4G Pro-line grade, brand, cost.
-  - Cake weight class (200g, 350g, 500g, 1000g+) and color-coded category labels (big breaks, small, medium, long, finale, zipper, NOAB, fan, barrage and more).
+  - Cake weight class (200g, 350g, 500g, 1000g+) and color-coded category labels (big breaks, small, medium, long, finale, zipper, NOAB, fan, barrage, ghost, colors, strobe, transition, fast, golden, slow and more).
+  - Compound cakes: break a cake into its fused sub cakes, each with shots, start time, duration, effect and categories. The cake's shots and duration come from its sub cakes.
+  - Cost per shot and cost per second for cakes and roman candles.
+  - Rockets (light-to-burst, burst time) and roman candles (shots, duration, lead delay), priced each or by the pack.
   - Shells: effect, size, light-to-burst time, per-shell or bulk-case pricing.
   - Racks: rows × tubes, tube size and spacing.
   - Used vs. owned counts and notes for every item.
@@ -31,8 +34,8 @@ There is no server. Your show autosaves in the browser, and you can save or open
   - Add igniters (e-match or Talon) on module cues.
   - Draw fuse between lead fuses, exit fuses, junctions and individual rack tubes.
   - Helpers chain cakes in sequence or fan them out from one junction.
-- **Rack editor:** open a rack to load shells tube by tube (click or drag). Lay fuse by clicking tubes in order, or series-fuse a whole rack in one click.
-- **Firing systems:** presets for a generic receiver system, COBRA 18R2 (channels and banks), IGNITE (per-module cues, 6-module limit), Bilusocn and P1200-style kits. Add modules, assign them to positions, and link module cues to the same controller cue so they fire together.
+- **Rack editor:** open a rack to load shells, rockets or roman candles tube by tube (click or drag). Rockets and roman candles can also be placed on the canvas by themselves. Lay fuse by clicking tubes in order, or series-fuse a whole rack in one click.
+- **Firing systems:** presets for a generic receiver system, COBRA 18R2 (channels and banks), IGNITE (per-module cues, 6-module limit), Bilusocn and P1200-style kits. Add modules, assign them to positions, and link module cues to the same controller cue so they fire together. Set cues per district for remotes that switch between districts (channel systems use channels).
 - **Timing engine:** computes every effect's ignition and burst time from the cue time, fuse burn time, cake lead and exit fuses, and junction splits (earliest arrival wins).
 - **Piano-roll timeline:**
   - Rows by cue or by position, showing effect bars for everything each cue fires.
@@ -44,10 +47,10 @@ There is no server. Your show autosaves in the browser, and you can save or open
   - Checks: over-allocated inventory, unconnected items, too many igniters per cue, cues out of range, and positions too close to the audience.
   - Show cost, plus inventory value.
 - **Exports:**
-  - **Setup worksheet** (print / save as PDF): shopping list with a supplies checklist (fuse tape, fuse cutter, cling film, PPE and stabilization supplies by default; edit it in Settings), module map, and per-position placement checklists, rack loading diagrams and step-by-step fuse chains.
-  - **Cost spreadsheet** (`.xlsx` with cost, inventory, fuse and cue sheets, or `.csv`).
-  - **Show plan** (print / save as PDF): a large-type cue sheet with times and gaps.
-  - **Show mode:** a full-screen countdown to the next cue for running the show.
+  - **Setup worksheet** (print / save as PDF): shopping list with a supplies checklist (fuse tape, fuse cutter, cling film, PPE and stabilization supplies by default; edit it in Settings), module map, and per-position placement checklists, sub cake breakdowns, a loading and fuse diagram for each rack (fuse type, fire direction and where fuse joins the rack) and step-by-step fuse chains.
+  - **Cost spreadsheet** (`.xlsx` with cost, inventory, fuse and cue sheets, or `.csv`), including cost per shot and per second.
+  - **Show plan** (print / save as PDF): a large-type cue sheet with times, gaps and district switches.
+  - **Show mode:** a full-screen countdown to the next cue for running the show. Shows what is going off at each position right now (including the active sub cake), jumps to the next cue (N), and shows each cue's district with a callout when it's time to switch.
 
 Burn rates and firing-system specs are typical starting values. Time your own fuse and check your hardware's cue counts and igniter limits. PatioPyro is a planning aid: follow product labels, local laws and safe distances.
 

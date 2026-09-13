@@ -1,5 +1,5 @@
 import { pinAddress } from '../model/addressing';
-import { tubeCount } from '../model/catalog';
+import { normalizeCake, tubeCount } from '../model/catalog';
 import { MAX_POSITIONS, newPosition, uid } from '../model/defaults';
 import { endpointPlacedId, inKey, nodeKey, outKey, tubeKey } from '../model/endpoints';
 import { controllerFromPreset, presetById, type ModuleModel } from '../model/presets';
@@ -80,7 +80,8 @@ export function updateSettings(patch: Partial<Settings>) {
 
 // ---------- catalog ----------
 
-export function upsertCatalogItem(item: CatalogItem) {
+export function upsertCatalogItem(input: CatalogItem) {
+  const item = input.kind === 'cake' ? normalizeCake(input) : input;
   mutate((s) => {
     const i = s.catalog.findIndex((c) => c.id === item.id);
     if (i >= 0) {

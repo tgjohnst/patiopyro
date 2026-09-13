@@ -12,14 +12,16 @@ import {
 } from '@xyflow/react';
 import type { EffectTiming } from '../../engine/timing';
 import { formatTime } from '../../lib/format';
-import type { Cake, PlacedItem, Rack } from '../../model/schema';
+import { KIND_ICON, isTubeLoadable, type FuseableItem } from '../../model/catalog';
+import type { PlacedItem, Rack } from '../../model/schema';
 import { setTubeShell } from '../../store/actions';
 import { getShow } from '../../store/showStore';
 import { DND_CATALOG, useUi } from '../../store/uiStore';
 
-export type CakeNodeData = {
+export type ItemNodeData = {
   placed: PlacedItem;
-  cake: Cake;
+  /** Cake, rocket or roman candle. */
+  item: FuseableItem;
   timing?: EffectTiming;
   cueLabel?: string;
   displayName: string;
@@ -36,16 +38,28 @@ export type RackNodeData = {
 export type IgniterNodeData = { title: string; subtitle: string; ok: boolean; kind: 'ematch' | 'talon' };
 export type JunctionNodeData = { label: string };
 
-export type CakeNodeT = Node<CakeNodeData, 'cake'>;
+export type ItemNodeT = Node<ItemNodeData, 'item'>;
 export type RackNodeT = Node<RackNodeData, 'rack'>;
 export type IgniterNodeT = Node<IgniterNodeData, 'igniter'>;
 export type JunctionNodeT = Node<JunctionNodeData, 'junction'>;
-export type CanvasNode = CakeNodeT | RackNodeT | IgniterNodeT | JunctionNodeT;
+export type CanvasNode = ItemNodeT | RackNodeT | IgniterNodeT | JunctionNodeT;
 
 const handleCls = '!h-3 !w-3 !border-2 !border-slate-900 !bg-amber-400';
 
-export const CakeNode = memo(function CakeNode({ data, selected }: NodeProps<CakeNodeT>) {
-  const { cake, timing } = data;
+function itemSummary(item: FuseableItem) {
+  switch (item.kind) {
+    case 'cake':
+      return `${item.shots} shots · ${item.durationSec}s${item.grade === '1.4G Pro-line' ? ' · Pro' : ''}`;
+    case 'candle':
+      return `Roman candle · ${item.shots} shots · ${item.durationSec}s`;
+    case 'rocket':
+      return `Rocket${item.effect ? ` · ${item.effect}` : ''}`;
+  }
+}
+
+export const ItemNode = memo(function ItemNode({ data, selected }: NodeProps<ItemNodeT>) {
+  const { item, timing } = data;
+  const hasExitFuse = item.kind === 'cake' && item.hasExitFuse;
   return (
     <div
       className={clsx(
@@ -55,16 +69,23 @@ export const CakeNode = memo(function CakeNode({ data, selected }: NodeProps<Cak
       data-testid={`node-${data.displayName}`}
     >
       <Handle id="in" type="source" position={HandlePos.Left} className={handleCls} title="Lead fuse" />
-      {cake.hasExitFuse && (
+      {hasExitFuse && (
         <Handle id="out" type="source" position={HandlePos.Right} className={clsx(handleCls, '!bg-rose-400')} title="Exit fuse" />
       )}
       <div className="flex items-center gap-1.5">
-        <span className="text-xs text-slate-500">▦</span>
+        <span className="text-xs text-slate-500">{KIND_ICON[item.kind]}</span>
         <span className="truncate text-sm font-semibold text-slate-100">{data.displayName}</span>
       </div>
-      <div className="text-[11px] text-slate-400">
-        {cake.shots} shots · {cake.durationSec}s{cake.grade === '1.4G Pro-line' ? ' · Pro' : ''}
-      </div>
+      <div className="truncate text-[11px] text-slate-400">{itemSummary(item)}</div>
+      {item.kind === 'cake' && item.subCakes.length > 0 && (
+        <ol className="mt-1 border-l border-slate-700 pl-1.5 text-[10px] leading-tight text-slate-400">
+          {item.subCakes.map((sub) => (
+            <li key={sub.id} className="truncate">
+              {sub.name} · {sub.shots} shots
+            </li>
+          ))}
+        </ol>
+      )}
       {timing ? (
         <div className="mt-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[11px] text-amber-200 tabular-nums">
           {formatTime(timing.startSec)} – {formatTime(timing.endSec)} · {data.cueLabel}
@@ -73,7 +94,7 @@ export const CakeNode = memo(function CakeNode({ data, selected }: NodeProps<Cak
         <div className="mt-1 rounded bg-slate-800 px-1.5 py-0.5 text-[11px] text-slate-500">Not on a timed cue</div>
       )}
       <div className="pointer-events-none absolute top-1/2 -left-7 -translate-y-1/2 text-[9px] text-slate-500">lead</div>
-      {cake.hasExitFuse && (
+      {hasExitFuse && (
         <div className="pointer-events-none absolute top-1/2 -right-7 -translate-y-1/2 text-[9px] text-slate-500">exit</div>
       )}
     </div>
@@ -93,7 +114,7 @@ export const RackNode = memo(function RackNode({ data, selected }: NodeProps<Rac
     if (!id) return;
     e.preventDefault();
     e.stopPropagation();
-    if (getShow().catalog.find((c) => c.id === id)?.kind === 'shell') setTubeShell(placed.id, index, id);
+    if (isTubeLoadable(getShow().catalog.find((c) => c.id === id))) setTubeShell(placed.id, index, id);
   };
 
   return (
@@ -195,7 +216,7 @@ export const JunctionNode = memo(function JunctionNode({ data, selected }: NodeP
   );
 });
 
-export const nodeTypes = { cake: CakeNode, rack: RackNode, igniter: IgniterNode, junction: JunctionNode };
+export const nodeTypes = { item: ItemNode, rack: RackNode, igniter: IgniterNode, junction: JunctionNode };
 
 export type FuseEdgeData = { color: string; label: string };
 

@@ -183,6 +183,8 @@ export function ReportsTab() {
                   <th>Detail</th>
                   <th className="text-right">Qty</th>
                   <th className="text-right">Unit cost</th>
+                  <th className="text-right" title="Cakes and roman candles">Cost / shot</th>
+                  <th className="text-right" title="Cakes and roman candles">Cost / sec</th>
                   <th className="text-right">Total</th>
                 </tr>
               </thead>
@@ -196,6 +198,8 @@ export function ReportsTab() {
                       {l.qty} <span className="text-xs text-slate-500">{l.unit}</span>
                     </td>
                     <td className="text-right">{formatMoney(l.unitCost)}</td>
+                    <td className="text-right text-slate-400">{l.perShot !== null ? formatMoney(l.perShot) : '—'}</td>
+                    <td className="text-right text-slate-400">{l.perSec !== null ? formatMoney(l.perSec) : '—'}</td>
                     <td className="text-right">{formatMoney(l.total)}</td>
                   </tr>
                 ))}
@@ -203,14 +207,14 @@ export function ReportsTab() {
               <tfoot>
                 {cost.subtotals.map((s) => (
                   <tr key={s.category} className="text-slate-400">
-                    <td colSpan={5} className="pt-1 text-right">
+                    <td colSpan={7} className="pt-1 text-right">
                       {s.category}
                     </td>
                     <td className="text-right">{formatMoney(s.total)}</td>
                   </tr>
                 ))}
                 <tr className="font-semibold text-slate-100">
-                  <td colSpan={5} className="pt-2 text-right">
+                  <td colSpan={7} className="pt-2 text-right">
                     Total
                   </td>
                   <td className="pt-2 text-right">{formatMoney(cost.total)}</td>

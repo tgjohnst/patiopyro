@@ -15,10 +15,23 @@ const catalogBase = {
   url: z.string().default(''),
 };
 
+/** One section of a compound cake. */
+export const subCakeSchema = z.object({
+  id,
+  name: z.string(),
+  shots: z.number().int().min(0),
+  /** Seconds after the compound cake's first shot that this section starts. */
+  offsetSec: nonNeg,
+  durationSec: nonNeg,
+  effectNotes: z.string().default(''),
+  categories: z.array(z.enum(CAKE_CATEGORIES)).default([]),
+});
+
 export const cakeSchema = z.object({
   ...catalogBase,
   kind: z.literal('cake'),
   brand: z.string().default(''),
+  /** Compound cakes: derived from the sub cakes (see normalizeCake). */
   shots: z.number().int().min(0),
   durationSec: nonNeg,
   effectNotes: z.string().default(''),
@@ -31,6 +44,8 @@ export const cakeSchema = z.object({
   /** Net explosive weight class; null when unclassified. */
   weightClass: z.enum(CAKE_WEIGHT_CLASSES).nullable().default(null),
   categories: z.array(z.enum(CAKE_CATEGORIES)).default([]),
+  /** Non-empty for compound cakes: the fused sections, each broken out. */
+  subCakes: z.array(subCakeSchema).default([]),
 });
 
 export const shellPricingSchema = z.discriminatedUnion('mode', [
@@ -50,6 +65,32 @@ export const shellSchema = z.object({
   pricing: shellPricingSchema,
 });
 
+/** Rockets are loaded into rack tubes or placed and fused like cakes. */
+export const rocketSchema = z.object({
+  ...catalogBase,
+  kind: z.literal('rocket'),
+  brand: z.string().default(''),
+  effect: z.string().default(''),
+  /** Seconds from fuse ignition to burst (lead fuse + flight). */
+  leadDelaySec: nonNeg,
+  burstDurationSec: nonNeg,
+  /** Per rocket, or by the pack (caseQty = rockets per pack). */
+  pricing: shellPricingSchema,
+});
+
+export const candleSchema = z.object({
+  ...catalogBase,
+  kind: z.literal('candle'),
+  brand: z.string().default(''),
+  effect: z.string().default(''),
+  shots: z.number().int().min(0),
+  durationSec: nonNeg,
+  /** Seconds from fuse ignition to the first shot. */
+  leadDelaySec: nonNeg,
+  /** Per candle, or by the pack (caseQty = candles per pack). */
+  pricing: shellPricingSchema,
+});
+
 export const rackSchema = z.object({
   ...catalogBase,
   kind: z.literal('rack'),
@@ -60,7 +101,13 @@ export const rackSchema = z.object({
   unitCost: nonNeg,
 });
 
-export const catalogItemSchema = z.discriminatedUnion('kind', [cakeSchema, shellSchema, rackSchema]);
+export const catalogItemSchema = z.discriminatedUnion('kind', [
+  cakeSchema,
+  shellSchema,
+  rocketSchema,
+  candleSchema,
+  rackSchema,
+]);
 
 export const fuseTypeSchema = z.object({
   id,
@@ -98,7 +145,7 @@ export const placedItemSchema = z.object({
   x: z.number(),
   y: z.number(),
   label: z.string().default(''),
-  /** Racks only: shell catalog id loaded in each tube (row-major order). */
+  /** Racks only: shell, rocket or roman candle catalog id loaded in each tube (row-major order). */
   tubes: z.array(z.string().nullable()).optional(),
 });
 
@@ -118,7 +165,7 @@ export const fuseNodeSchema = z.discriminatedUnion('kind', [
 /**
  * Endpoint keys:
  *  n:<nodeId>            igniter or junction
- *  in:<placedId>         cake lead fuse
+ *  in:<placedId>         lead fuse of a cake, rocket or roman candle
  *  out:<placedId>        cake exit fuse
  *  t:<placedId>:<index>  rack tube (0-based)
  */
@@ -147,6 +194,11 @@ export const controllerSchema = z.object({
   maxModules: z.number().int().min(1).nullable(),
   igniterKind: z.enum(['ematch', 'talon']),
   maxIgnitersPerCue: z.number().int().min(1),
+  /**
+   * flat: remote cues per district (area) the operator switches between; 0 = no districts.
+   * Channel systems treat each channel as a district.
+   */
+  cuesPerDistrict: z.number().int().min(0).default(0),
 });
 
 export const moduleSchema = z.object({
@@ -200,7 +252,10 @@ export const showSchema = z.object({
   cueNotes: z.record(z.string(), z.string()),
 });
 
+export type SubCake = z.infer<typeof subCakeSchema>;
 export type Cake = z.infer<typeof cakeSchema>;
+export type Rocket = z.infer<typeof rocketSchema>;
+export type Candle = z.infer<typeof candleSchema>;
 export type Shell = z.infer<typeof shellSchema>;
 export type Rack = z.infer<typeof rackSchema>;
 export type CatalogItem = z.infer<typeof catalogItemSchema>;

@@ -3,7 +3,10 @@ import { useMemo, useState } from 'react';
 import { Badge, Button, Field, Modal, NumberInput, Panel, Select, TextInput } from '../../components/ui';
 import {
   controllerCapacity,
+  cueDistrict,
   describeAddress,
+  districtColor,
+  flatAddressId,
   pinAddress,
   selectableAddresses,
 } from '../../model/addressing';
@@ -123,6 +126,17 @@ export function FiringTab() {
               onChange={(maxIgnitersPerCue) => updateController({ maxIgnitersPerCue })}
             />
           </Field>
+          {ctrl.addressing === 'flat' && (
+            <Field label="Cues per district" hint="Cues in each remote district (area). 0 = none.">
+              <NumberInput
+                integer
+                min={0}
+                max={999}
+                value={ctrl.cuesPerDistrict}
+                onChange={(cuesPerDistrict) => updateController({ cuesPerDistrict })}
+              />
+            </Field>
+          )}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
           <Badge tone="sky">
@@ -138,6 +152,7 @@ export function FiringTab() {
           <Badge>{modules.length} modules</Badge>
           <span className="text-xs text-slate-500">{preset.notes}</span>
         </div>
+        <DistrictSummary />
         <p className="mt-2 text-[11px] text-slate-500">
           Preset specs are starting points. Check cue counts and igniter limits against your hardware and firmware.
         </p>
@@ -208,6 +223,50 @@ export function FiringTab() {
       </Panel>
 
       {pinEdit && <PinDialog {...pinEdit} onClose={() => setPinEdit(null)} />}
+    </div>
+  );
+}
+
+/** Which remote district each cue sits in, so the operator knows when to switch. */
+function DistrictSummary() {
+  const ctrl = useShow((s) => s.firing.controller);
+  const { totals } = useDerived();
+  if (ctrl.addressing === 'module') return null;
+  if (ctrl.addressing === 'channels') {
+    return (
+      <p className="mt-2 text-xs text-slate-400">
+        Each channel counts as a district. Show mode tells you when to switch channels.
+      </p>
+    );
+  }
+  if (ctrl.cuesPerDistrict <= 0) {
+    return (
+      <p className="mt-2 text-xs text-slate-400">
+        If your remote fires cues in districts (areas) you switch between, set cues per district. Show mode then
+        shows each cue's district and when to switch.
+      </p>
+    );
+  }
+  const wired = new Map<string, number>();
+  for (const addr of totals.cues.used) {
+    const d = cueDistrict(ctrl, addr);
+    if (d) wired.set(d.key, (wired.get(d.key) ?? 0) + 1);
+  }
+  const count = Math.ceil(ctrl.cuesPerChannel / ctrl.cuesPerDistrict);
+  return (
+    <div className="mt-3 flex flex-wrap gap-1.5" data-testid="district-summary">
+      {Array.from({ length: count }, (_, i) => {
+        const d = cueDistrict(ctrl, flatAddressId(i * ctrl.cuesPerDistrict + 1))!;
+        const color = districtColor(d);
+        return (
+          <span key={d.key} className="rounded-md border px-2 py-1 text-xs" style={{ borderColor: color }}>
+            <b style={{ color }}>{d.label}</b>{' '}
+            <span className="text-slate-400">
+              {d.range} · {wired.get(d.key) ?? 0} wired
+            </span>
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -304,6 +363,7 @@ function ModuleCard({
           const wired = wiredPins.get(`${m.id}:${pin}`) ?? 0;
           const overridden = m.pinOverrides[String(pin)] !== undefined;
           const t = cueTimes[addr];
+          const district = ctrl.addressing === 'flat' ? cueDistrict(ctrl, addr) : null;
           return (
             <button
               key={pin}
@@ -322,7 +382,10 @@ function ModuleCard({
                 </span>
               </div>
               {ctrl.addressing !== 'module' && (
-                <div className="truncate text-slate-400">{describeAddress(addr, modules).label}</div>
+                <div className="truncate text-slate-400">
+                  {describeAddress(addr, modules).label}
+                  {district && <span style={{ color: districtColor(district) }}> · {district.short}</span>}
+                </div>
               )}
               <div className="truncate text-slate-500">
                 {wired ? `${wired} igniter${wired > 1 ? 's' : ''}${t !== undefined ? ` · ${formatTime(t)}` : ''}` : '—'}

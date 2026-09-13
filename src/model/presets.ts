@@ -16,6 +16,8 @@ export interface FiringSystemPreset {
   maxModules: number | null;
   igniterKind: 'ematch' | 'talon';
   maxIgnitersPerCue: number;
+  /** Remote cues per district for flat systems with district switching (0 = none). */
+  cuesPerDistrict?: number;
   moduleModels: ModuleModel[];
   notes: string;
 }
@@ -121,6 +123,7 @@ export function controllerFromPreset(p: FiringSystemPreset): Controller {
     maxModules: p.maxModules,
     igniterKind: p.igniterKind,
     maxIgnitersPerCue: p.maxIgnitersPerCue,
+    cuesPerDistrict: p.cuesPerDistrict ?? 0,
   };
 }
 

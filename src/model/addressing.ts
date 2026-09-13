@@ -131,3 +131,44 @@ export function selectableAddresses(ctrl: Controller, modules: FiringModule[]): 
   }
   return ids.map((id) => describeAddress(id, modules));
 }
+
+export interface District {
+  /** Stable key; consecutive cues with different keys need a district switch. */
+  key: string;
+  /** 1-based, used to pick a color. */
+  index: number;
+  label: string;
+  short: string;
+  /** Cue range covered, for flat districts. */
+  range?: string;
+}
+
+/**
+ * The remote district (area) an address is fired from. Flat remotes split their cues into
+ * districts of `cuesPerDistrict`; channel systems switch channels. Null when there is nothing
+ * to switch (no districts configured, or per-module addressing).
+ */
+export function cueDistrict(ctrl: Controller, id: string): District | null {
+  const p = parseAddress(id);
+  if (!p) return null;
+  if (p.kind === 'flat' && ctrl.cuesPerDistrict > 0) {
+    const index = Math.ceil(p.cue / ctrl.cuesPerDistrict);
+    const first = (index - 1) * ctrl.cuesPerDistrict + 1;
+    return {
+      key: `d${index}`,
+      index,
+      label: `District ${index}`,
+      short: `D${index}`,
+      range: `Cues ${first}–${Math.max(first, Math.min(first + ctrl.cuesPerDistrict - 1, ctrl.cuesPerChannel))}`,
+    };
+  }
+  if (p.kind === 'channels') {
+    return { key: `ch${p.channel}`, index: p.channel, label: `Channel ${p.channel}`, short: `Ch${p.channel}` };
+  }
+  return null;
+}
+
+/** Cycled per district index so neighbouring districts are easy to tell apart. */
+export const DISTRICT_COLORS = ['#38bdf8', '#f472b6', '#a3e635', '#fb923c', '#a78bfa', '#facc15', '#2dd4bf', '#f87171'];
+
+export const districtColor = (d: District) => DISTRICT_COLORS[(d.index - 1) % DISTRICT_COLORS.length];

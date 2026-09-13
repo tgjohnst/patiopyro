@@ -99,10 +99,12 @@ export function SiteMapTab() {
 
   const counts = (posId: string) => {
     const items = placed.filter((p) => p.positionId === posId);
-    const cakes = items.filter((p) => catalog.find((c) => c.id === p.catalogId)?.kind === 'cake').length;
-    const racks = items.length - cakes;
-    const shells = items.reduce((n, p) => n + (p.tubes?.filter(Boolean).length ?? 0), 0);
-    return { cakes, racks, shells, modules: modules.filter((m) => m.positionId === posId).length };
+    const kindOf = (catalogId: string) => catalog.find((c) => c.id === catalogId)?.kind;
+    const cakes = items.filter((p) => kindOf(p.catalogId) === 'cake').length;
+    const racks = items.filter((p) => kindOf(p.catalogId) === 'rack').length;
+    const singles = items.length - cakes - racks;
+    const loaded = items.reduce((n, p) => n + (p.tubes?.filter(Boolean).length ?? 0), 0);
+    return { cakes, racks, singles, loaded, modules: modules.filter((m) => m.positionId === posId).length };
   };
 
   const openPosition = (id: string) => {
@@ -300,7 +302,8 @@ export function SiteMapTab() {
                   <div className="mt-2 flex flex-wrap gap-1">
                     <Badge>{c.cakes} cakes</Badge>
                     <Badge>{c.racks} racks</Badge>
-                    <Badge>{c.shells} shells</Badge>
+                    {c.singles > 0 && <Badge>{c.singles} rockets &amp; candles</Badge>}
+                    <Badge>{c.loaded} tubes loaded</Badge>
                     <Badge tone="sky">{c.modules} modules</Badge>
                   </div>
                   <div className="mt-2 flex gap-2">

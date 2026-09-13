@@ -1,8 +1,8 @@
-import { itemUnitCost } from '../model/catalog';
-import type { Show } from '../model/schema';
+import { costPerSecond, costPerShot, itemUnitCost } from '../model/catalog';
+import type { CatalogItem, Show } from '../model/schema';
 import type { Totals } from './totals';
 
-export type CostCategory = 'Cakes' | 'Shells' | 'Racks' | 'Fuse' | 'Igniters';
+export type CostCategory = 'Cakes' | 'Roman candles' | 'Rockets' | 'Shells' | 'Racks' | 'Fuse' | 'Igniters';
 
 export interface CostLine {
   category: CostCategory;
@@ -12,6 +12,9 @@ export interface CostLine {
   unit: string;
   unitCost: number;
   total: number;
+  /** Cakes and roman candles only. */
+  perShot: number | null;
+  perSec: number | null;
 }
 
 export interface CostReport {
@@ -22,7 +25,37 @@ export interface CostReport {
   inventoryValue: number;
 }
 
-const CATEGORY_ORDER: CostCategory[] = ['Cakes', 'Shells', 'Racks', 'Fuse', 'Igniters'];
+const CATEGORY_ORDER: CostCategory[] = ['Cakes', 'Roman candles', 'Rockets', 'Shells', 'Racks', 'Fuse', 'Igniters'];
+
+const ITEM_CATEGORY: Record<CatalogItem['kind'], CostCategory> = {
+  cake: 'Cakes',
+  candle: 'Roman candles',
+  rocket: 'Rockets',
+  shell: 'Shells',
+  rack: 'Racks',
+};
+
+function itemDetail(item: CatalogItem): string {
+  switch (item.kind) {
+    case 'cake':
+      return [
+        item.brand,
+        item.grade,
+        `${item.shots} shots`,
+        item.subCakes.length ? `compound: ${item.subCakes.map((s) => s.name).join(' + ')}` : '',
+      ]
+        .filter(Boolean)
+        .join(' · ');
+    case 'candle':
+      return [item.brand, `${item.shots} shots`, item.effect].filter(Boolean).join(' · ');
+    case 'rocket':
+      return [item.brand, item.effect].filter(Boolean).join(' · ');
+    case 'shell':
+      return [item.brand, `${item.sizeIn}"`, item.effect].filter(Boolean).join(' · ');
+    case 'rack':
+      return `${item.rows}×${item.cols} tubes`;
+  }
+}
 
 export function computeCost(show: Show, totals: Totals): CostReport {
   const lines: CostLine[] = [];
@@ -34,18 +67,15 @@ export function computeCost(show: Show, totals: Totals): CostReport {
     if (item.kind === 'rack' && !show.settings.includeRacksInCost) continue;
     const unitCost = itemUnitCost(item);
     lines.push({
-      category: item.kind === 'cake' ? 'Cakes' : item.kind === 'shell' ? 'Shells' : 'Racks',
+      category: ITEM_CATEGORY[item.kind],
       name: item.name,
-      detail:
-        item.kind === 'cake'
-          ? [item.brand, item.grade, `${item.shots} shots`].filter(Boolean).join(' · ')
-          : item.kind === 'shell'
-            ? [item.brand, `${item.sizeIn}"`, item.effect].filter(Boolean).join(' · ')
-            : `${item.rows}×${item.cols} tubes`,
+      detail: itemDetail(item),
       qty: use.used,
       unit: 'ea',
       unitCost,
       total: unitCost * use.used,
+      perShot: costPerShot(item),
+      perSec: costPerSecond(item),
     });
   }
 
@@ -58,6 +88,8 @@ export function computeCost(show: Show, totals: Totals): CostReport {
       unit: `roll (${f.rollLengthFt} ft)`,
       unitCost: f.rollCost,
       total: f.rolls * f.rollCost,
+      perShot: null,
+      perSec: null,
     });
   }
 
@@ -70,6 +102,8 @@ export function computeCost(show: Show, totals: Totals): CostReport {
       unit: 'ea',
       unitCost: show.settings.igniterUnitCost,
       total: totals.igniters.total * show.settings.igniterUnitCost,
+      perShot: null,
+      perSec: null,
     });
   }
 
@@ -87,13 +121,15 @@ export function computeCost(show: Show, totals: Totals): CostReport {
   const inventoryLines: CostLine[] = show.catalog.map((item) => {
     const unitCost = itemUnitCost(item);
     return {
-      category: item.kind === 'cake' ? 'Cakes' : item.kind === 'shell' ? 'Shells' : 'Racks',
+      category: ITEM_CATEGORY[item.kind],
       name: item.name,
       detail: '',
       qty: item.qtyOwned,
       unit: 'ea',
       unitCost,
       total: unitCost * item.qtyOwned,
+      perShot: costPerShot(item),
+      perSec: costPerSecond(item),
     };
   });
 
