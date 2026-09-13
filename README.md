@@ -50,29 +50,92 @@ There is no server. Your show autosaves in the browser, and you can save or open
 
 Burn rates and firing-system specs are typical starting values. Time your own fuse and check your hardware's cue counts and igniter limits. PatioPyro is a planning aid: follow product labels, local laws and safe distances.
 
-## Getting started
+## Prerequisites
 
-Requires Node 22+.
+- **Node.js 22.12 or newer** (Vite and Vitest require it). With [nvm](https://github.com/nvm-sh/nvm): `nvm install 22 && nvm use 22`.
+- npm (bundled with Node).
+
+Then install dependencies from the repo root:
 
 ```sh
 npm install
-npm run dev        # http://localhost:5173
 ```
 
-Choose **File → Load demo show** to explore a finished example.
+## Running the app
+
+### Development
+
+```sh
+npm run dev
+```
+
+Open the URL Vite prints (usually http://localhost:5173). The page reloads as you edit code.
+
+To explore a finished example, choose **File → Load demo show**. Your work autosaves in the browser. Use **File → Save show file** to keep a copy on disk.
+
+### Production build
+
+```sh
+npm run build      # type-check, then build the static site into dist/
+npm run preview    # serve dist/ locally (usually http://localhost:4173)
+```
+
+`dist/` is a fully static site that can be hosted anywhere, including GitHub Pages or any file server. Asset paths are relative, so it also works from a subfolder.
+
+## Testing
+
+### Unit tests (Vitest)
+
+These cover the engine: fuse timing, cue addressing and linking, fuse/igniter totals, cost, validation, and show-file loading.
+
+```sh
+npm test             # run once
+npm run test:watch   # re-run on change
+```
+
+### End-to-end tests (Playwright)
+
+These drive the real app in headless Chromium. One test loads the demo show, places a cake, draws fuse, moves a cue and exports reports. The other builds a show from scratch and checks undo, autosave and printing.
+
+One-time setup, to download the browser:
+
+```sh
+npx playwright install chromium
+# Linux only, if Chromium fails to start with missing shared libraries:
+sudo npx playwright install-deps chromium
+```
+
+Run the tests:
+
+```sh
+npm run e2e                  # starts a dev server on port 5199 automatically
+npx playwright test --headed # watch the browser while it runs
+npx playwright show-report   # open the HTML report after a failure
+```
+
+Screenshots of each screen are saved to `test-results/shots/`.
+
+### Lint and type-check
+
+```sh
+npm run lint
+npx tsc -b
+```
+
+Before committing, run `npm run lint && npm test && npm run build && npm run e2e`.
 
 ## Scripts
 
-| Command            | What it does                                            |
-| ------------------ | ------------------------------------------------------- |
-| `npm run dev`      | Start the Vite dev server                               |
-| `npm run build`    | Type-check and build the static site into `dist/`      |
-| `npm run preview`  | Serve the production build                              |
-| `npm test`         | Engine unit tests (Vitest)                              |
-| `npm run e2e`      | Browser tests (Playwright; run `npx playwright install chromium` first) |
-| `npm run lint`     | ESLint                                                  |
-
-`dist/` is a fully static site that can be hosted anywhere, including GitHub Pages or any file server.
+| Command              | What it does                                       |
+| -------------------- | -------------------------------------------------- |
+| `npm run dev`        | Start the Vite dev server                          |
+| `npm run build`      | Type-check and build the static site into `dist/`  |
+| `npm run preview`    | Serve the production build                         |
+| `npm test`           | Unit tests (Vitest), single run                    |
+| `npm run test:watch` | Unit tests in watch mode                           |
+| `npm run e2e`        | End-to-end browser tests (Playwright)              |
+| `npm run lint`       | ESLint                                             |
+| `npm run format`     | Prettier                                           |
 
 ## Project layout
 
