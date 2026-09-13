@@ -82,6 +82,12 @@ npm run preview    # serve dist/ locally (usually http://localhost:4173)
 
 `dist/` is a fully static site that can be hosted anywhere, including GitHub Pages or any file server. Asset paths are relative, so it also works from a subfolder.
 
+### Deployment
+
+The live app is at **https://tgjohnst.github.io/patiopyro/**.
+
+Every push to `main` runs `.github/workflows/deploy-pages.yml`, which installs dependencies, runs the unit tests, builds, and publishes `dist/` to GitHub Pages. To redeploy without a push, run the workflow manually from the repository's **Actions** tab.
+
 ## Testing
 
 ### Unit tests (Vitest)
