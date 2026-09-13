@@ -1,2 +1,88 @@
 # patiopyro
-A show design application for backyard fireworks
+
+A show design application for backyard fireworks.
+
+PatioPyro is a browser-only web app for planning 1.4G consumer fireworks shows. You can:
+- keep an inventory of cakes, shells and racks
+- lay out up to five launch positions on a site map
+- draw fuse chains visually
+- map them to a wireless firing system
+- arrange cue timing on a piano-roll timeline
+- print everything you need on show day
+
+There is no server. Your show autosaves in the browser, and you can save or open `.patiopyro.json` files to back up or share a show.
+
+## Features
+
+- **Inventory**
+  - Cakes: shots, duration, lead delay, exit fuse, 1.4G / 1.4G Pro-line grade, brand, cost.
+  - Shells: effect, size, light-to-burst time, per-shell or bulk-case pricing.
+  - Racks: rows × tubes, tube size and spacing.
+  - Used vs. owned counts for every item.
+- **Fuse library:** green visco, fast visco, time fuse, black match and quickmatch, with editable burn rates and roll pricing. Pick the default type, set any run's type individually, or apply one type to a whole position.
+- **Site map:** a top-down, to-scale yard.
+  - Drag positions and the audience line.
+  - Safety-radius circles and distance-to-audience labels.
+  - Optional background image.
+  - Drop inventory onto a position to place it.
+- **Position layout:** a node canvas per position.
+  - Drag cakes and racks in from the inventory.
+  - Add igniters (e-match or Talon) on module cues.
+  - Draw fuse between lead fuses, exit fuses, junctions and individual rack tubes.
+  - Helpers chain cakes in sequence or fan them out from one junction.
+- **Rack editor:** open a rack to load shells tube by tube (click or drag). Lay fuse by clicking tubes in order, or series-fuse a whole rack in one click.
+- **Firing systems:** presets for a generic receiver system, COBRA 18R2 (channels and banks), IGNITE (per-module cues, 6-module limit), Bilusocn and P1200-style kits. Add modules, assign them to positions, and link module cues to the same controller cue so they fire together.
+- **Timing engine:** computes every effect's ignition and burst time from the cue time, fuse burn time, cake lead and exit fuses, and junction splits (earliest arrival wins).
+- **Piano-roll timeline:**
+  - Rows by cue or by position, showing effect bars for everything each cue fires.
+  - Drag cues in time with snapping; shift-select to move several.
+  - Drag onto another row to link cues.
+  - Play/scrub playhead.
+- **Reports:**
+  - Totals for fuse by type (with tie-in allowance, waste and rolls), igniters with spares, cues used vs. available, and module usage.
+  - Checks: over-allocated inventory, unconnected items, too many igniters per cue, cues out of range, and positions too close to the audience.
+  - Show cost, plus inventory value.
+- **Exports:**
+  - **Setup worksheet** (print / save as PDF): shopping list, module map, and per-position placement checklists, rack loading diagrams and step-by-step fuse chains.
+  - **Cost spreadsheet** (`.xlsx` with cost, inventory, fuse and cue sheets, or `.csv`).
+  - **Show plan** (print / save as PDF): a large-type cue sheet with times and gaps.
+  - **Show mode:** a full-screen countdown to the next cue for running the show.
+
+Burn rates and firing-system specs are typical starting values. Time your own fuse and check your hardware's cue counts and igniter limits. PatioPyro is a planning aid: follow product labels, local laws and safe distances.
+
+## Getting started
+
+Requires Node 22+.
+
+```sh
+npm install
+npm run dev        # http://localhost:5173
+```
+
+Choose **File → Load demo show** to explore a finished example.
+
+## Scripts
+
+| Command            | What it does                                            |
+| ------------------ | ------------------------------------------------------- |
+| `npm run dev`      | Start the Vite dev server                               |
+| `npm run build`    | Type-check and build the static site into `dist/`      |
+| `npm run preview`  | Serve the production build                              |
+| `npm test`         | Engine unit tests (Vitest)                              |
+| `npm run e2e`      | Browser tests (Playwright; run `npx playwright install chromium` first) |
+| `npm run lint`     | ESLint                                                  |
+
+`dist/` is a fully static site that can be hosted anywhere, including GitHub Pages or any file server.
+
+## Project layout
+
+```
+src/
+  model/      Zod schema (show file format), presets, cue addressing, demo show
+  engine/     Pure functions: timing, totals, cost, validation, cue list, worksheet chains
+  store/      Zustand store (autosave + undo/redo) and all show mutations
+  features/   inventory, site map, positions (React Flow + rack editor), firing system,
+              timeline, reports (print views, exports, show mode), settings
+  components/ Small UI kit
+e2e/          Playwright tests
+```

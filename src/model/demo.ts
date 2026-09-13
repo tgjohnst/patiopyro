@@ -1,0 +1,165 @@
+import { flatAddressId } from './addressing';
+import { createEmptyShow, uid } from './defaults';
+import { inKey, nodeKey, outKey, tubeKey } from './endpoints';
+import type { Cake, FiringModule, Rack, Shell, Show } from './schema';
+
+const FAST = 'fuse-fast-visco';
+const GREEN = 'fuse-green-visco';
+const QUICK = 'fuse-quickmatch';
+
+export function createDemoShow(): Show {
+  const s = createEmptyShow();
+  s.meta = {
+    name: 'Backyard Fourth (demo)',
+    date: '2026-07-04',
+    location: 'Back yard',
+    notes: 'Demo show: chained cakes, a shell rack fused in series, and a linked finale cue.',
+  };
+
+  const [posA] = s.positions;
+  Object.assign(posA, { name: 'Left', x: 25, y: 18 });
+  const posB = { id: uid('pos'), name: 'Center', color: '#3b82f6', x: 50, y: 12, safetyRadiusFt: 35 };
+  const posC = { id: uid('pos'), name: 'Right', color: '#eab308', x: 75, y: 18, safetyRadiusFt: 35 };
+  s.positions.push(posB, posC);
+
+  const cake = (name: string, extra: Partial<Cake>): Cake => ({
+    id: uid('cat'),
+    kind: 'cake',
+    name,
+    qtyOwned: 2,
+    notes: '',
+    brand: 'Demo Fireworks Co.',
+    shots: 25,
+    durationSec: 25,
+    effectNotes: '',
+    grade: '1.4G',
+    unitCost: 45,
+    leadDelaySec: 4,
+    hasExitFuse: true,
+    ...extra,
+  });
+  const nightOwl = cake('Night Owl', { shots: 25, durationSec: 30, effectNotes: 'Gold brocade to crackle' });
+  const willow = cake('Crackling Willow', { shots: 16, durationSec: 20, unitCost: 30, effectNotes: 'Hanging willow' });
+  const comets = cake('Blue Comets', { shots: 36, durationSec: 25, unitCost: 55, effectNotes: 'Blue comet fans' });
+  const strobe = cake('Strobe Fan', { shots: 49, durationSec: 28, unitCost: 65, effectNotes: 'White strobe Z-fan' });
+  const finale = cake('Pro Finale 500g', {
+    qtyOwned: 1,
+    shots: 100,
+    durationSec: 45,
+    unitCost: 120,
+    grade: '1.4G Pro-line',
+    hasExitFuse: false,
+    effectNotes: 'Multicolor crossette finale',
+  });
+  const peony: Shell = {
+    id: uid('cat'),
+    kind: 'shell',
+    name: 'Red Peony Canister',
+    qtyOwned: 48,
+    notes: '',
+    brand: 'Demo Fireworks Co.',
+    effect: 'Red peony with crackle',
+    sizeIn: 1.75,
+    leadDelaySec: 3,
+    burstDurationSec: 3,
+    pricing: { mode: 'case', caseQty: 24, caseCost: 60 },
+  };
+  const brocade: Shell = {
+    id: uid('cat'),
+    kind: 'shell',
+    name: 'Gold Brocade Canister',
+    qtyOwned: 12,
+    notes: '',
+    brand: 'Demo Fireworks Co.',
+    effect: 'Gold brocade crown',
+    sizeIn: 1.75,
+    leadDelaySec: 3,
+    burstDurationSec: 4,
+    pricing: { mode: 'unit', unitCost: 4 },
+  };
+  const rack: Rack = {
+    id: uid('cat'),
+    kind: 'rack',
+    name: 'HDPE 3×3 rack',
+    qtyOwned: 2,
+    notes: '',
+    rows: 3,
+    cols: 3,
+    tubeSizeIn: 1.75,
+    tubeSpacingIn: 2.5,
+    unitCost: 35,
+  };
+  s.catalog = [nightOwl, willow, comets, strobe, finale, peony, brocade, rack];
+
+  const mod = (name: string, positionId: string, startCue: number): FiringModule => ({
+    id: uid('mod'),
+    name,
+    modelName: 'Generic 12-cue receiver',
+    cueCount: 12,
+    positionId,
+    startCue,
+    bankChannels: [1],
+    pinOverrides: {},
+  });
+  const m1 = mod('M1', posA.id, 1);
+  const m2 = mod('M2', posB.id, 13);
+  const m3 = mod('M3', posC.id, 25);
+  m3.pinOverrides['12'] = flatAddressId(12); // linked with M1 cue 12 for the finale
+  s.firing.modules = [m1, m2, m3];
+
+  const place = (catalogId: string, positionId: string, x: number, y: number, tubes?: (string | null)[]) => {
+    const id = uid('pl');
+    s.placed.push({ id, catalogId, positionId, x, y, label: '', ...(tubes ? { tubes } : {}) });
+    return id;
+  };
+  const igniter = (positionId: string, moduleId: string, pin: number, x: number, y: number) => {
+    const id = uid('ig');
+    s.fuseNodes.push({ id, kind: 'igniter', positionId, moduleId, pin, x, y });
+    return nodeKey(id);
+  };
+  const seg = (positionId: string, from: string, to: string, fuseTypeId: string, lengthIn: number) =>
+    s.fuseSegments.push({ id: uid('fz'), positionId, from, to, fuseTypeId, lengthIn });
+
+  // Left: two chained cakes, a rack in three series runs, and a finale cake.
+  const owl = place(nightOwl.id, posA.id, 40, 220);
+  const wil = place(willow.id, posA.id, 340, 220);
+  seg(posA.id, igniter(posA.id, m1.id, 1, 60, 40), inKey(owl), GREEN, 2);
+  seg(posA.id, outKey(owl), inKey(wil), GREEN, 4);
+
+  const tubes = [peony.id, brocade.id, peony.id, brocade.id, peony.id, brocade.id, peony.id, peony.id, peony.id];
+  const rk = place(rack.id, posA.id, 560, 200, tubes);
+  [2, 3, 4].forEach((pin, row) => {
+    seg(posA.id, igniter(posA.id, m1.id, pin, 520 + row * 90, 40), tubeKey(rk, row * 3), QUICK, 3);
+    seg(posA.id, tubeKey(rk, row * 3), tubeKey(rk, row * 3 + 1), FAST, 2.5);
+    seg(posA.id, tubeKey(rk, row * 3 + 1), tubeKey(rk, row * 3 + 2), FAST, 2.5);
+  });
+  const strobeA = place(strobe.id, posA.id, 340, 460);
+  seg(posA.id, igniter(posA.id, m1.id, 12, 60, 480), inKey(strobeA), GREEN, 2);
+
+  // Center: two comet cakes fanned out from one junction, then a strobe cake.
+  const c1 = place(comets.id, posB.id, 80, 260);
+  const c2 = place(comets.id, posB.id, 340, 260);
+  const j = uid('jn');
+  s.fuseNodes.push({ id: j, kind: 'junction', positionId: posB.id, x: 260, y: 150 });
+  seg(posB.id, igniter(posB.id, m2.id, 1, 240, 30), nodeKey(j), GREEN, 2);
+  seg(posB.id, nodeKey(j), inKey(c1), QUICK, 12);
+  seg(posB.id, nodeKey(j), inKey(c2), QUICK, 12);
+  const strobeB = place(strobe.id, posB.id, 600, 260);
+  seg(posB.id, igniter(posB.id, m2.id, 2, 620, 30), inKey(strobeB), GREEN, 2);
+
+  // Right: the finale, on a cue linked with M1 cue 12.
+  const fin = place(finale.id, posC.id, 120, 240);
+  seg(posC.id, igniter(posC.id, m3.id, 12, 140, 40), inKey(fin), GREEN, 2);
+
+  s.cueTimes = {
+    [flatAddressId(1)]: 0,
+    [flatAddressId(2)]: 42,
+    [flatAddressId(3)]: 50,
+    [flatAddressId(4)]: 58,
+    [flatAddressId(13)]: 70,
+    [flatAddressId(14)]: 98,
+    [flatAddressId(12)]: 125,
+  };
+  s.cueNotes = { [flatAddressId(12)]: 'Finale — both sides together' };
+  return s;
+}
