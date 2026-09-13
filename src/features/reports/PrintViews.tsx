@@ -1,8 +1,8 @@
 import { Fragment, useEffect } from 'react';
-import { buildPositionSheets } from '../../engine/chains';
+import { buildPositionSheets, type RackSheet } from '../../engine/chains';
 import { buildCueList } from '../../engine/cues';
 import { formatLengthIn, formatTime } from '../../lib/format';
-import type { Show } from '../../model/schema';
+import type { CatalogItem, PlacedItem, Show } from '../../model/schema';
 import { useDerived, useShow } from '../../store/showStore';
 import { useUi } from '../../store/uiStore';
 
@@ -182,15 +182,20 @@ export function Worksheet() {
           <h3 className="mt-2 font-bold">1. Place items</h3>
           <ul className="columns-2 text-xs">
             {sh.items.map(({ placed, item, label }) => (
-              <li key={placed.id} className="flex py-0.5">
+              <li key={placed.id} className="avoid-break flex py-0.5">
                 {box}
                 <span>
-                  {label}{' '}
-                  <span className="text-gray-500">
-                    ({item.kind}
-                    {item.kind === 'cake' ? `, ${item.shots} shots` : ''}
-                    {item.kind === 'rack' ? `, ${placed.tubes?.filter(Boolean).length ?? 0} shells` : ''})
-                  </span>
+                  {label} <span className="text-gray-500">({itemBrief(item, placed)})</span>
+                  {item.kind === 'cake' && item.subCakes.length > 0 && (
+                    <ol className="text-[11px] text-gray-600">
+                      {item.subCakes.map((sub, i) => (
+                        <li key={sub.id}>
+                          ↳ {i + 1}. {sub.name}: {sub.shots} shots, +{sub.offsetSec}s for {sub.durationSec}s
+                          {sub.effectNotes && ` · ${sub.effectNotes}`}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
                 </span>
               </li>
             ))}
@@ -198,27 +203,11 @@ export function Worksheet() {
 
           {sh.racks.length > 0 && (
             <>
-              <h3 className="mt-3 font-bold">2. Load racks</h3>
+              <h3 className="mt-3 font-bold">2. Load and fuse racks</h3>
               {sh.racks.map((r) => (
                 <div key={r.placed.id} className="avoid-break mb-2">
                   <div className="text-xs font-semibold">{sh.items.find((i) => i.placed.id === r.placed.id)?.label}</div>
-                  <table className="border-collapse text-[10px]">
-                    <tbody>
-                      {Array.from({ length: r.rack.rows }, (_, row) => (
-                        <tr key={row}>
-                          {r.tubes
-                            .filter((t) => t.row === row)
-                            .map((t) => (
-                              <td key={t.index} className="h-12 w-20 border border-gray-400 p-0.5 align-top">
-                                <div className="font-bold">{t.index + 1}</div>
-                                <div className="truncate">{t.shellName ?? '— empty —'}</div>
-                                {t.startSec !== null && <div className="text-gray-500">{formatTime(t.startSec)}</div>}
-                              </td>
-                            ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <RackDiagram sheet={r} units={u} />
                   {r.runs.length > 0 && (
                     <div className="mt-0.5 text-[11px] text-gray-600">
                       Tube fuse:{' '}
@@ -319,6 +308,145 @@ export function Worksheet() {
   );
 }
 
+function itemBrief(item: CatalogItem, placed: PlacedItem) {
+  switch (item.kind) {
+    case 'cake':
+      return `cake, ${item.shots} shots${item.subCakes.length ? `, compound of ${item.subCakes.length}` : ''}`;
+    case 'candle':
+      return `roman candle, ${item.shots} shots`;
+    case 'rocket':
+      return 'rocket';
+    case 'shell':
+      return 'shell';
+    case 'rack':
+      return `rack, ${placed.tubes?.filter(Boolean).length ?? 0} tubes loaded`;
+  }
+}
+
+/** Dash patterns so fuse types stay distinguishable on a black-and-white printout. */
+const DASHES = [undefined, '7 3', '2 2.5', '9 3 2 3'];
+const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
+/** Top-down rack drawing: what loads in each tube, the fuse between tubes, and where fuse joins from outside. */
+function RackDiagram({ sheet, units }: { sheet: RackSheet; units: Show['settings']['units'] }) {
+  const { rack, tubes, runs, links } = sheet;
+  const C = 80;
+  const pad = 12;
+  const r = 27;
+  const cx = (i: number) => pad + (i % rack.cols) * C + C / 2;
+  const cy = (i: number) => pad + Math.floor(i / rack.cols) * C + C / 2;
+  const w = pad * 2 + rack.cols * C;
+  const h = pad * 2 + rack.rows * C;
+  const fuses = [...new Map([...runs, ...links].map((f) => [f.fuseName, f.color])).entries()];
+  const dash = (name: string) => DASHES[fuses.findIndex(([n]) => n === name) % DASHES.length];
+  const letter = (n: number) => String.fromCharCode(65 + (n % 26));
+  const tubeLetters = new Map<number, string>();
+  links.forEach((l, n) => tubeLetters.set(l.index, (tubeLetters.get(l.index) ?? '') + letter(n)));
+
+  return (
+    <div className="avoid-break">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        style={{ width: Math.min(w * 1.1, 740), maxWidth: '100%' }}
+        className="block"
+        data-testid="rack-fuse-diagram"
+      >
+        <rect x={2} y={2} width={w - 4} height={h - 4} rx={8} fill="none" stroke="#9ca3af" />
+        {runs.map((run, i) => {
+          const [x1, y1, x2, y2] = [cx(run.a), cy(run.a), cx(run.b), cy(run.b)];
+          const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+          const [ux, uy] = [(x2 - x1) / len, (y2 - y1) / len];
+          const [mx, my] = [(x1 + x2) / 2, (y1 + y2) / 2];
+          const s = 5;
+          return (
+            <g key={i}>
+              <line
+                x1={x1 + ux * r}
+                y1={y1 + uy * r}
+                x2={x2 - ux * r}
+                y2={y2 - uy * r}
+                stroke={run.color}
+                strokeWidth={3}
+                strokeDasharray={dash(run.fuseName)}
+              />
+              {run.directed && (
+                <polygon
+                  points={`${mx + ux * s},${my + uy * s} ${mx - ux * s - uy * s},${my - uy * s + ux * s} ${mx - ux * s + uy * s},${my - uy * s - ux * s}`}
+                  fill="#000"
+                />
+              )}
+            </g>
+          );
+        })}
+        {tubes.map((t) => {
+          const [x, y] = [cx(t.index), cy(t.index)];
+          const letters = tubeLetters.get(t.index);
+          return (
+            <g key={t.index}>
+              <circle
+                cx={x}
+                cy={y}
+                r={r}
+                fill={t.shellName ? '#fff' : '#f3f4f6'}
+                stroke="#000"
+                strokeWidth={letters ? 2.5 : 1}
+                strokeDasharray={t.shellName ? undefined : '2 2'}
+              />
+              <text x={x} y={y - 9} fontSize={10} fontWeight={700} textAnchor="middle">
+                {t.index + 1}
+              </text>
+              <text x={x} y={y + 3} fontSize={6.5} textAnchor="middle">
+                {t.shellName ? clip(t.shellName, 11) : 'empty'}
+              </text>
+              {t.startSec !== null && (
+                <text x={x} y={y + 12} fontSize={7} fill="#4b5563" textAnchor="middle">
+                  {formatTime(t.startSec)}
+                </text>
+              )}
+              {letters && (
+                <g>
+                  <circle cx={x - r * 0.75} cy={y - r * 0.75} r={7} fill="#000" />
+                  <text x={x - r * 0.75} y={y - r * 0.75 + 3} fontSize={8} fontWeight={700} fill="#fff" textAnchor="middle">
+                    {letters}
+                  </text>
+                </g>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+      <div className="mt-0.5 flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-gray-700">
+        {fuses.map(([name, color]) => (
+          <span key={name} className="inline-flex items-center gap-1">
+            <svg width={26} height={6} aria-hidden>
+              <line x1={0} y1={3} x2={26} y2={3} stroke={color} strokeWidth={3} strokeDasharray={dash(name)} />
+            </svg>
+            {name}
+          </span>
+        ))}
+        {runs.some((run) => run.directed) && <span>▶ direction the fire travels</span>}
+        {fuses.length === 0 && <span>No fuse on this rack yet.</span>}
+      </div>
+      {links.length > 0 && (
+        <ul className="mt-0.5 text-[11px]">
+          {links.map((l, n) => (
+            <li key={n} className="flex">
+              {box}
+              <span>
+                <b>{letter(n)}</b>: tube {l.index + 1} {l.entering === false ? '→' : '←'} {formatLengthIn(l.lengthIn, units)}{' '}
+                {l.fuseName} {l.entering === false ? '→' : '←'} {l.other}
+                {l.entering !== null && (
+                  <span className="text-gray-500"> ({l.entering ? 'fire enters the rack here' : 'fire leaves the rack here'})</span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function ShowPlan() {
   const show = useShow((s) => s);
   const d = useDerived();
@@ -349,14 +477,26 @@ export function ShowPlan() {
         <tbody>
           {cues.map((c, i) => {
             const delta = deltas[i];
+            const switchTo = c.district && cues[i - 1]?.district?.key !== c.district.key ? c.district : null;
             return (
-              <tr key={c.addressId} className="avoid-break border-b border-gray-400 align-top">
+              <Fragment key={c.addressId}>
+              {switchTo && (
+                <tr className="avoid-break">
+                  <td />
+                  <td colSpan={4} className="pt-2 pb-1 text-sm font-bold">
+                    {i === 0 ? '▶ Start the remote on' : '↔ Switch the remote to'} {switchTo.label}
+                    {switchTo.range && <span className="font-normal text-gray-600"> ({switchTo.range})</span>}
+                  </td>
+                </tr>
+              )}
+              <tr className="avoid-break border-b border-gray-400 align-top">
                 <td className="py-2 pr-2">{box}</td>
                 <td className="pr-3 font-mono text-xl font-bold tabular-nums">{c.time !== null ? formatTime(c.time) : '—'}</td>
                 <td className="pr-3 font-mono text-sm text-gray-600 tabular-nums">{delta !== null ? `+${delta.toFixed(1)}s` : ''}</td>
                 <td className="pr-3">
                   <div className="text-xl font-bold whitespace-nowrap">{c.label}</div>
                   <div className="text-[11px] text-gray-500">{c.pins.map((p) => `${p.moduleName} #${p.pin}`).join(' + ')}</div>
+                  {c.district && <div className="text-[11px] font-semibold">{c.district.label}</div>}
                 </td>
                 <td className="text-sm">
                   <div className="font-semibold">
@@ -370,6 +510,7 @@ export function ShowPlan() {
                   {c.note && <div className="mt-0.5 font-semibold">Note: {c.note}</div>}
                 </td>
               </tr>
+              </Fragment>
             );
           })}
           <tr>

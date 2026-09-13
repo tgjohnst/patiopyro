@@ -87,7 +87,9 @@ export function TimelineTab() {
           return {
             id: c.addressId,
             label: c.label,
-            sublabel: c.pins.map((p) => `${p.moduleName} #${p.pin}`).join(', '),
+            sublabel: [c.district?.label, c.pins.map((p) => `${p.moduleName} #${p.pin}`).join(', ')]
+              .filter(Boolean)
+              .join(' · '),
             color: preview.positions.find((p) => p.id === c.positionIds[0])?.color,
             cues: [c],
             effects: c.effects,
@@ -391,11 +393,18 @@ export function TimelineTab() {
                             background: colorOf(e.positionId),
                             opacity: active ? 1 : 0.75,
                           }}
-                          title={`${e.name}${e.tubeIndex !== null ? ` (tube ${e.tubeIndex + 1})` : ''}\nLit ${formatTime(e.igniteSec)} · effect ${formatTime(e.startSec)}–${formatTime(e.endSec)}`}
+                          title={`${e.name}${e.tubeIndex !== null ? ` (tube ${e.tubeIndex + 1})` : ''}\nLit ${formatTime(e.igniteSec)} · effect ${formatTime(e.startSec)}–${formatTime(e.endSec)}${e.sections.map((s) => `\n  ${s.name}: ${formatTime(s.startSec)}–${formatTime(s.endSec)}`).join('')}`}
                           onPointerDown={(ev) => beginDrag(ev, e.addressId)}
                         >
                           {e.name}
                           {e.tubeIndex !== null ? ` #${e.tubeIndex + 1}` : ''}
+                          {e.sections.slice(1).map((s) => (
+                            <span
+                              key={`${s.name}-${s.startSec}`}
+                              className="absolute top-0 h-full w-px bg-slate-950/70"
+                              style={{ left: w(s.startSec - e.startSec) }}
+                            />
+                          ))}
                         </div>
                       );
                     })}

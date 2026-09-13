@@ -1,5 +1,5 @@
 import { describeAddress, pinAddress } from '../model/addressing';
-import { inKey, nodeKey, outKey, parseEndpoint } from '../model/endpoints';
+import { inKey, nodeKey, outKey, parseEndpoint, tubeKey } from '../model/endpoints';
 import type { CatalogItem, FiringModule, PlacedItem, Position, Rack, Show } from '../model/schema';
 import type { EffectTiming, TimingResult } from './timing';
 
@@ -27,9 +27,27 @@ export interface Chain {
 export interface RackSheet {
   placed: PlacedItem;
   rack: Rack;
-  tubes: { index: number; row: number; col: number; shellName: string | null; startSec: number | null }[];
-  /** Tube-to-tube fuse runs inside the rack. */
-  runs: { a: number; b: number; fuseName: string; lengthIn: number }[];
+  tubes: {
+    index: number;
+    row: number;
+    col: number;
+    shellName: string | null;
+    startSec: number | null;
+    /** When fire reaches the tube's fuse. */
+    litSec: number | null;
+  }[];
+  /** Tube-to-tube fuse runs inside the rack. When `directed`, fire travels from a to b. */
+  runs: { a: number; b: number; fuseName: string; color: string; lengthIn: number; directed: boolean }[];
+  /** Fuse joining a tube to something outside the rack (igniter, junction, cake). */
+  links: {
+    index: number;
+    other: string;
+    fuseName: string;
+    color: string;
+    lengthIn: number;
+    /** true: fire enters the rack here; false: it leaves; null: not timed. */
+    entering: boolean | null;
+  }[];
 }
 
 export interface PositionSheet {
@@ -184,17 +202,42 @@ export function buildPositionSheets(show: Show, timing: TimingResult): PositionS
             col: index % rack.cols,
             shellName: shellId ? (catalog.get(shellId)?.name ?? '?') : null,
             startSec: eff?.startSec ?? null,
+            litSec: arrive(tubeKey(p.id, index)),
           };
         });
-        const runs = segs.flatMap((s) => {
+        const runs: RackSheet['runs'] = [];
+        const links: RackSheet['links'] = [];
+        for (const s of segs) {
           const a = parseEndpoint(s.from);
           const b = parseEndpoint(s.to);
-          if (a?.kind === 'tube' && b?.kind === 'tube' && a.placedId === p.id && b.placedId === p.id) {
-            return [{ a: a.index, b: b.index, fuseName: fuse.get(s.fuseTypeId)?.name ?? '?', lengthIn: s.lengthIn }];
+          const aIn = a?.kind === 'tube' && a.placedId === p.id;
+          const bIn = b?.kind === 'tube' && b.placedId === p.id;
+          const ft = fuse.get(s.fuseTypeId);
+          const common = { fuseName: ft?.name ?? '?', color: ft?.color ?? '#64748b', lengthIn: s.lengthIn };
+          if (aIn && bIn) {
+            const ta = arrive(s.from);
+            const tb = arrive(s.to);
+            const flip = ta !== null && tb !== null && tb < ta;
+            runs.push({
+              a: flip ? b.index : a.index,
+              b: flip ? a.index : b.index,
+              directed: ta !== null && tb !== null && ta !== tb,
+              ...common,
+            });
+          } else if (aIn || bIn) {
+            const [tubeEnd, otherKey] = aIn ? [a, s.to] : [b!, s.from];
+            if (tubeEnd?.kind !== 'tube') continue;
+            const tTube = arrive(tubeKey(p.id, tubeEnd.index));
+            const tOther = arrive(otherKey);
+            links.push({
+              index: tubeEnd.index,
+              other: name(otherKey),
+              entering: tTube !== null && tOther !== null ? tOther <= tTube : null,
+              ...common,
+            });
           }
-          return [];
-        });
-        return { placed: p, rack, tubes, runs };
+        }
+        return { placed: p, rack, tubes, runs, links };
       });
 
     return {

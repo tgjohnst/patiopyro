@@ -20,6 +20,7 @@ import { endpointNamer } from '../../engine/chains';
 import { segmentDelaySec } from '../../engine/timing';
 import { displayToInches, formatLengthIn, formatTime, inchesToDisplay, smallUnit } from '../../lib/format';
 import { describeAddress, pinAddress } from '../../model/addressing';
+import { KIND_LABEL, effectDurationSec, isFuseable } from '../../model/catalog';
 import { endpointFromHandle, endpointHandle, parseEndpoint } from '../../model/endpoints';
 import type { Show } from '../../model/schema';
 import {
@@ -39,7 +40,7 @@ import {
 } from '../../store/actions';
 import { derive, getShow, useShow } from '../../store/showStore';
 import { DND_CATALOG, useUi } from '../../store/uiStore';
-import { edgeTypes, nodeTypes, type CanvasNode, type FuseEdgeData } from './nodes';
+import { edgeTypes, nodeTypes, type CanvasNode, type FuseEdgeData, type ItemNodeT } from './nodes';
 import { RackEditor } from './RackEditor';
 
 export function PositionsTab() {
@@ -90,15 +91,15 @@ function buildGraph(show: Show, positionId: string) {
     if (p.positionId !== positionId) continue;
     const item = catalog.get(p.catalogId);
     const displayName = name(`in:${p.id}`).replace(/ lead fuse$/, '');
-    if (item?.kind === 'cake') {
+    if (isFuseable(item)) {
       const t = timing.effects.find((e) => e.placedId === p.id);
       nodes.push({
         id: p.id,
-        type: 'cake',
+        type: 'item',
         position: { x: p.x, y: p.y },
         data: {
           placed: p,
-          cake: item,
+          item,
           timing: t,
           cueLabel: t ? describeAddress(t.addressId, show.firing.modules).label : undefined,
           displayName,
@@ -222,7 +223,7 @@ function PositionCanvas({ positionId }: { positionId: string }) {
 
   const deleteSelection = () =>
     deleteElements(
-      selectedNodes.filter((n) => n.type === 'cake' || n.type === 'rack').map((n) => n.id),
+      selectedNodes.filter((n) => n.type === 'item' || n.type === 'rack').map((n) => n.id),
       selectedNodes.filter((n) => n.type === 'igniter' || n.type === 'junction').map((n) => n.id),
       selectedEdges.map((e) => e.id),
     );
@@ -266,7 +267,7 @@ function PositionCanvas({ positionId }: { positionId: string }) {
             }
             onDelete={({ nodes: dn, edges: de }) =>
               deleteElements(
-                dn.filter((n) => n.type === 'cake' || n.type === 'rack').map((n) => n.id),
+                dn.filter((n) => n.type === 'item' || n.type === 'rack').map((n) => n.id),
                 dn.filter((n) => n.type === 'igniter' || n.type === 'junction').map((n) => n.id),
                 de.map((e) => e.id),
               )
@@ -287,7 +288,7 @@ function PositionCanvas({ positionId }: { positionId: string }) {
         </div>
         {nodes.length === 0 && (
           <div className="pointer-events-none absolute inset-x-0 top-1/2 text-center text-sm text-slate-500">
-            Drag cakes and racks here from the inventory. Then add igniters and draw fuse between the handles.
+            Drag cakes, rockets, roman candles and racks here from the inventory. Then add igniters and draw fuse between the handles.
           </div>
         )}
       </div>
@@ -325,7 +326,7 @@ function Toolbar({
   const [runType, setRunType] = useState(settings.defaultFuseTypeId);
   const [runLen, setRunLen] = useState(settings.defaultSegmentLengthIn);
   const u = settings.units;
-  const sel = selectedNodes.filter((n) => n.type === 'cake' || n.type === 'rack');
+  const sel = selectedNodes.filter((n) => n.type === 'item' || n.type === 'rack');
   const orderedSel = [...sel].sort((a, b) => a.position.x - b.position.x || a.position.y - b.position.y);
 
   return (
@@ -466,7 +467,7 @@ function Inspector({
           )}
           <ul className="list-disc space-y-1 pl-4 text-slate-500">
             <li>Drag from one handle to another to lay fuse.</li>
-            <li>Cake: left handle is the lead fuse, right is the exit fuse.</li>
+            <li>Cake: left handle is the lead fuse, right is the exit fuse. Rockets and roman candles have a lead fuse only.</li>
             <li>Rack: every tube is a handle. Open the rack to load shells and fuse tubes in series.</li>
             <li>Shift-click or drag a box to select several, then use Chain or Fan out.</li>
             <li>Press Delete to remove the selection.</li>
@@ -478,37 +479,7 @@ function Inspector({
         </div>
       )}
 
-      {single?.type === 'cake' && (
-        <div className="flex flex-col gap-2">
-          <p className="font-medium text-slate-100">{single.data.cake.name}</p>
-          <Field label="Label (e.g. “left of rack”)">
-            <TextInput value={single.data.placed.label} onChange={(label) => updatePlaced(single.id, { label })} />
-          </Field>
-          <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
-            <dt className="text-slate-500">Brand</dt>
-            <dd>{single.data.cake.brand || '—'}</dd>
-            <dt className="text-slate-500">Shots</dt>
-            <dd>{single.data.cake.shots}</dd>
-            <dt className="text-slate-500">Duration</dt>
-            <dd>{single.data.cake.durationSec}s</dd>
-            <dt className="text-slate-500">Lead delay</dt>
-            <dd>{single.data.cake.leadDelaySec}s</dd>
-            {single.data.timing && (
-              <>
-                <dt className="text-slate-500">Lit at</dt>
-                <dd>{formatTime(single.data.timing.igniteSec)}</dd>
-                <dt className="text-slate-500">Effect</dt>
-                <dd>
-                  {formatTime(single.data.timing.startSec)} – {formatTime(single.data.timing.endSec)}
-                </dd>
-                <dt className="text-slate-500">Cue</dt>
-                <dd>{single.data.cueLabel}</dd>
-              </>
-            )}
-          </dl>
-          {single.data.cake.effectNotes && <p className="text-xs text-slate-400">{single.data.cake.effectNotes}</p>}
-        </div>
-      )}
+      {single?.type === 'item' && <ItemInspector node={single} />}
 
       {single?.type === 'rack' && (
         <div className="flex flex-col gap-2">
@@ -568,6 +539,72 @@ function Inspector({
         </div>
       )}
     </aside>
+  );
+}
+
+function ItemInspector({ node }: { node: ItemNodeT }) {
+  const { item, placed, timing, cueLabel } = node.data;
+  const notes = item.kind === 'cake' ? item.effectNotes : item.effect;
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="font-medium text-slate-100">{item.name}</p>
+      <Field label="Label (e.g. “left of rack”)">
+        <TextInput value={placed.label} onChange={(label) => updatePlaced(node.id, { label })} />
+      </Field>
+      <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+        <dt className="text-slate-500">Type</dt>
+        <dd>{item.kind === 'cake' && item.subCakes.length ? 'Compound cake' : KIND_LABEL[item.kind]}</dd>
+        <dt className="text-slate-500">Brand</dt>
+        <dd>{item.brand || '—'}</dd>
+        {item.kind !== 'rocket' && (
+          <>
+            <dt className="text-slate-500">Shots</dt>
+            <dd>{item.shots}</dd>
+          </>
+        )}
+        <dt className="text-slate-500">{item.kind === 'rocket' ? 'Burst' : 'Duration'}</dt>
+        <dd>{effectDurationSec(item)}s</dd>
+        <dt className="text-slate-500">{item.kind === 'rocket' ? 'Light to burst' : 'Lead delay'}</dt>
+        <dd>{item.leadDelaySec}s</dd>
+        {timing && (
+          <>
+            <dt className="text-slate-500">Lit at</dt>
+            <dd>{formatTime(timing.igniteSec)}</dd>
+            <dt className="text-slate-500">Effect</dt>
+            <dd>
+              {formatTime(timing.startSec)} – {formatTime(timing.endSec)}
+            </dd>
+            <dt className="text-slate-500">Cue</dt>
+            <dd>{cueLabel}</dd>
+          </>
+        )}
+      </dl>
+      {item.kind === 'cake' && item.subCakes.length > 0 && (
+        <div className="text-xs">
+          <div className="mb-1 font-medium text-slate-300">Sub cakes</div>
+          <ol className="flex flex-col gap-1">
+            {item.subCakes.map((sub, i) => {
+              const section = timing?.sections[i];
+              return (
+                <li key={sub.id} className="rounded border border-slate-800 px-2 py-1">
+                  <div className="text-slate-200">
+                    {i + 1}. {sub.name}
+                  </div>
+                  <div className="text-slate-500">
+                    {sub.shots} shots ·{' '}
+                    {section
+                      ? `${formatTime(section.startSec)} – ${formatTime(section.endSec)}`
+                      : `+${sub.offsetSec}s for ${sub.durationSec}s`}
+                  </div>
+                  {sub.effectNotes && <div className="text-slate-400">{sub.effectNotes}</div>}
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
+      {notes && <p className="text-xs text-slate-400">{notes}</p>}
+    </div>
   );
 }
 

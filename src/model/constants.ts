@@ -15,6 +15,12 @@ export const CAKE_CATEGORIES = [
   'Willow',
   'Comets',
   'Mines',
+  'Ghost',
+  'Colors',
+  'Transition',
+  'Fast',
+  'Golden',
+  'Slow',
 ] as const;
 
 export const DEFAULT_WORKSHEET_SUPPLIES = [

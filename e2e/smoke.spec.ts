@@ -12,6 +12,11 @@ test('demo show: layout, fuse, timeline, reports and exports', async ({ page }) 
   await page.getByRole('button', { name: 'File ▾' }).click();
   await page.getByRole('button', { name: 'Load demo show' }).click();
   await expect(page.getByText('Night Owl').first()).toBeVisible();
+  await expect(page.getByRole('row', { name: /Sky Whistler Rocket/ })).toContainText('$3.00');
+  await expect(page.getByRole('row', { name: /10-Ball Roman Candle/ })).toContainText('$0.40'); // $4 / 10 shots
+  await expect(page.getByRole('row', { name: /Triple Threat Compound/ })).toContainText('Compound ×3');
+  await expect(page.getByTestId('sub-row-Triple Threat Compound-1')).toContainText('Ghost fans');
+  await expect(page.getByRole('row', { name: /^Night Owl/ })).toContainText('$1.80'); // $45 / 25 shots
   await shot(page, '1-inventory');
 
   await page.getByRole('button', { name: 'Site Map', exact: true }).click();
@@ -53,6 +58,8 @@ test('demo show: layout, fuse, timeline, reports and exports', async ({ page }) 
 
   await page.getByRole('button', { name: 'Firing System', exact: true }).click();
   await expect(page.getByTestId('module-M1')).toBeVisible();
+  await expect(page.getByLabel('Cues per district')).toHaveValue('4');
+  await expect(page.getByTestId('district-summary')).toContainText('District 4');
   await shot(page, '6-firing');
 
   // Timeline: drag cue 9 right by ~10 s
@@ -70,6 +77,8 @@ test('demo show: layout, fuse, timeline, reports and exports', async ({ page }) 
 
   await page.getByRole('button', { name: /^Reports/ }).click();
   await expect(page.getByTestId('cost-table')).toBeVisible();
+  await expect(page.getByTestId('cost-table')).toContainText('Roman candles');
+  await expect(page.getByTestId('cost-table')).toContainText('Rockets');
   await shot(page, '8-reports');
 
   const [xlsx] = await Promise.all([
@@ -82,13 +91,29 @@ test('demo show: layout, fuse, timeline, reports and exports', async ({ page }) 
 
   await page.getByRole('button', { name: 'Setup worksheet' }).click();
   await expect(page.getByText('Fuse chains, in cue order').first()).toBeVisible();
+  // One fuse diagram per rack: the shell rack on Left and the rocket rack in Center.
+  await expect(page.getByTestId('rack-fuse-diagram')).toHaveCount(2);
+  await expect(page.getByText('fire enters the rack here').first()).toBeVisible();
   await shot(page, '9-worksheet');
   await page.getByRole('button', { name: 'Show plan', exact: true }).click();
   await expect(page.getByText('End of show').first()).toBeVisible();
+  await expect(page.getByText('Switch the remote to District 3').first()).toBeVisible();
   await shot(page, '10-plan');
 
   await page.getByRole('button', { name: '▶ Show mode' }).click();
   await expect(page.getByTestId('show-mode')).toBeVisible();
+  await expect(page.getByTestId('next-cue')).toContainText('Cue 1');
+  await expect(page.getByTestId('district-callout')).toHaveText('START ON DISTRICT 1');
+  await expect(page.getByTestId('district-track')).toContainText('District 3');
+  // Jump through cues 1–4 (0:42, 0:50, 0:58): the willow chained off Night Owl is bursting at Left.
+  for (let i = 0; i < 4; i++) await page.keyboard.press('n');
+  await expect(page.getByTestId('show-clock')).toHaveText('0:58.0');
+  await expect(page.getByTestId('next-cue')).toContainText('Cue 9');
+  await expect(page.getByTestId('district-callout')).toHaveText('SWITCH TO DISTRICT 3');
+  await expect(page.getByTestId('remote-district')).toContainText('District 1');
+  await expect(page.getByTestId('now-Left')).toContainText('Crackling Willow');
+  await page.getByRole('button', { name: /Next cue/ }).click();
+  await expect(page.getByTestId('show-clock')).toHaveText('1:20.0');
   await shot(page, '11-showmode');
   await page.keyboard.press('Escape');
 

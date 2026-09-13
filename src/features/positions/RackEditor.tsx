@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Badge, Button, Field, Modal, NumberInput, Select } from '../../components/ui';
 import { endpointNamer } from '../../engine/chains';
 import { displayToInches, formatTime, inchesToDisplay, smallUnit } from '../../lib/format';
+import { KIND_ICON, isTubeLoadable } from '../../model/catalog';
 import { tubeKey } from '../../model/endpoints';
 import type { Rack } from '../../model/schema';
 import {
@@ -29,7 +30,7 @@ export function RackEditor({ placedId }: { placedId: string }) {
   const { timing, totals } = useDerived();
   const placed = show.placed.find((p) => p.id === placedId);
   const rack = show.catalog.find((c) => c.id === placed?.catalogId) as Rack | undefined;
-  const shells = show.catalog.filter((c) => c.kind === 'shell');
+  const shells = show.catalog.filter(isTubeLoadable);
   const [mode, setMode] = useState<'load' | 'fuse'>('load');
   const [brush, setBrush] = useState<string | null>(shells[0]?.id ?? null);
   const [path, setPath] = useState<number[]>([]);
@@ -127,7 +128,7 @@ export function RackEditor({ placedId }: { placedId: string }) {
                   mode === m ? 'bg-amber-500 text-slate-950' : 'text-slate-300 hover:bg-slate-800',
                 )}
               >
-                {m === 'load' ? 'Load shells' : 'Lay fuse'}
+                {m === 'load' ? 'Load tubes' : 'Lay fuse'}
               </button>
             ))}
           </div>
@@ -135,10 +136,10 @@ export function RackEditor({ placedId }: { placedId: string }) {
           {mode === 'load' ? (
             <>
               <p className="text-xs text-slate-400">
-                Pick a shell, then click tubes to load them. Alt-click or right-click empties a tube. You can also drag shells onto tubes.
+                Pick a shell, rocket or roman candle, then click tubes to load them. Alt-click or right-click empties a tube. You can also drag them onto tubes.
               </p>
               <div className="flex flex-col gap-1">
-                {shells.length === 0 && <p className="text-sm text-slate-500">No shells in inventory.</p>}
+                {shells.length === 0 && <p className="text-sm text-slate-500">No shells, rockets or roman candles in inventory.</p>}
                 {shells.map((s) => {
                   const use = totals.inventory.find((x) => x.catalogId === s.id);
                   const left = s.qtyOwned - (use?.used ?? 0);
@@ -154,6 +155,9 @@ export function RackEditor({ placedId }: { placedId: string }) {
                       )}
                     >
                       <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: `hsl(${shellHue(s.id)} 80% 55%)` }} />
+                      <span className="w-3 text-center text-xs text-slate-500" title={s.kind}>
+                        {KIND_ICON[s.kind]}
+                      </span>
                       <span className="flex-1 truncate">{s.name}</span>
                       <span className={clsx('text-xs tabular-nums', left < 0 ? 'text-rose-400' : 'text-slate-500')}>{left}</span>
                     </button>
@@ -259,7 +263,7 @@ export function RackEditor({ placedId }: { placedId: string }) {
                     onDragOver={(e) => e.dataTransfer.types.includes(DND_CATALOG) && e.preventDefault()}
                     onDrop={(e) => {
                       const id = e.dataTransfer.getData(DND_CATALOG);
-                      if (show.catalog.find((c) => c.id === id)?.kind === 'shell') setTubeShell(placedId, i, id);
+                      if (isTubeLoadable(show.catalog.find((c) => c.id === id))) setTubeShell(placedId, i, id);
                     }}
                   >
                     <circle

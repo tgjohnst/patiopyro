@@ -1,7 +1,17 @@
 import clsx from 'clsx';
-import { useState, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { Badge, Button, NumberInput, Panel, TextInput } from '../../components/ui';
-import { CATEGORY_CLASS, safeHref, shellUnitCost, tubeCount } from '../../model/catalog';
+import {
+  CATEGORY_CLASS,
+  PIECE_NOUNS,
+  costPerSecond,
+  costPerShot,
+  safeHref,
+  shellUnitCost,
+  subCakeEndSec,
+  tubeCount,
+  type TubeItem,
+} from '../../model/catalog';
 import { uid } from '../../model/defaults';
 import type { Cake, CatalogItem, FuseType } from '../../model/schema';
 import {
@@ -95,7 +105,7 @@ function CategoryLabels({ categories }: { categories: Cake['categories'] }) {
   );
 }
 
-function NameCell({ item }: { item: CatalogItem }) {
+function NameCell({ item, badge }: { item: CatalogItem; badge?: ReactNode }) {
   const href = safeHref(item.url);
   return (
     <td className={clsx(td, 'font-medium')}>
@@ -112,6 +122,31 @@ function NameCell({ item }: { item: CatalogItem }) {
           ↗
         </a>
       )}
+      {badge}
+    </td>
+  );
+}
+
+const money = (n: number | null) => (n === null ? '—' : formatMoney(n));
+
+function pricingText(item: TubeItem) {
+  const n = PIECE_NOUNS[item.kind];
+  return item.pricing.mode === 'case'
+    ? `${formatMoney(item.pricing.caseCost)} / ${n.pack} of ${item.pricing.caseQty}`
+    : `Per ${n.one}`;
+}
+
+function PackUse({ item, used }: { item: TubeItem; used: number }) {
+  const packs = item.pricing.mode === 'case' ? Math.round((item.qtyOwned / item.pricing.caseQty) * 10) / 10 : 0;
+  return (
+    <td className={td}>
+      <UseBadge used={used} owned={item.qtyOwned} />
+      {item.pricing.mode === 'case' && (
+        <span className="ml-1 text-xs text-slate-500">
+          ({packs} {PIECE_NOUNS[item.kind].pack}
+          {packs === 1 ? '' : 's'})
+        </span>
+      )}
     </td>
   );
 }
@@ -123,6 +158,8 @@ export function InventoryTab() {
   const used = (id: string) => totals.inventory.find((u) => u.catalogId === id)?.used ?? 0;
 
   const cakes = catalog.filter((c) => c.kind === 'cake');
+  const candles = catalog.filter((c) => c.kind === 'candle');
+  const rockets = catalog.filter((c) => c.kind === 'rocket');
   const shells = catalog.filter((c) => c.kind === 'shell');
   const racks = catalog.filter((c) => c.kind === 'rack');
 
@@ -134,6 +171,12 @@ export function InventoryTab() {
         <h1 className="mr-auto text-lg font-semibold">Inventory</h1>
         <Button variant="primary" onClick={() => add('cake')}>
           + Cake
+        </Button>
+        <Button variant="primary" onClick={() => add('candle')}>
+          + Roman candle
+        </Button>
+        <Button variant="primary" onClick={() => add('rocket')}>
+          + Rocket
         </Button>
         <Button variant="primary" onClick={() => add('shell')}>
           + Shells
@@ -147,29 +190,109 @@ export function InventoryTab() {
         {cakes.length === 0 ? (
           <p className="text-sm text-slate-500">No cakes yet.</p>
         ) : (
-          <Table head={['Name', 'Brand', 'Grade', 'Weight', 'Categories', 'Shots', 'Duration', 'Lead', 'Exit fuse', 'Cost', 'Used / owned', 'Effect', 'Notes', '']}>
+          <Table
+            head={['Name', 'Brand', 'Grade', 'Weight', 'Categories', 'Shots', 'Duration', 'Lead', 'Exit fuse', 'Cost', 'Cost / shot', 'Cost / sec', 'Used / owned', 'Effect', 'Notes', '']}
+          >
             {cakes.map((c) => (
+              <Fragment key={c.id}>
+                <tr className="hover:bg-slate-800/30">
+                  <NameCell
+                    item={c}
+                    badge={
+                      c.subCakes.length > 0 && (
+                        <Badge tone="sky" className="ml-1.5">
+                          Compound ×{c.subCakes.length}
+                        </Badge>
+                      )
+                    }
+                  />
+                  <td className={td}>{c.brand}</td>
+                  <td className={td}>
+                    <Badge tone={c.grade === '1.4G Pro-line' ? 'sky' : 'slate'}>{c.grade}</Badge>
+                  </td>
+                  <td className={td}>{c.weightClass ?? '—'}</td>
+                  <td className="min-w-40 px-2 py-1.5">
+                    <CategoryLabels categories={c.categories} />
+                  </td>
+                  <td className={td}>{c.shots}</td>
+                  <td className={td}>{formatTime(c.durationSec, 0)}</td>
+                  <td className={td}>{c.leadDelaySec}s</td>
+                  <td className={td}>{c.hasExitFuse ? 'Yes' : '—'}</td>
+                  <td className={td}>{formatMoney(c.unitCost)}</td>
+                  <td className={td}>{money(costPerShot(c))}</td>
+                  <td className={td}>{money(costPerSecond(c))}</td>
+                  <td className={td}>
+                    <UseBadge used={used(c.id)} owned={c.qtyOwned} />
+                  </td>
+                  <td className="max-w-64 truncate px-2 py-1.5 text-slate-400">{c.effectNotes}</td>
+                  <NotesCell notes={c.notes} />
+                  <RowActions item={c} onEdit={() => setEditing(c)} />
+                </tr>
+                {c.subCakes.map((sub, i) => (
+                  <tr key={sub.id} className="bg-slate-950/40 text-xs text-slate-400" data-testid={`sub-row-${c.name}-${i + 1}`}>
+                    <td className={clsx(td, 'pl-5')}>↳ {sub.name}</td>
+                    <td colSpan={3} className={td}>
+                      {formatTime(sub.offsetSec)}–{formatTime(subCakeEndSec(sub))} after first shot
+                    </td>
+                    <td className="px-2 py-1">
+                      <CategoryLabels categories={sub.categories} />
+                    </td>
+                    <td className={td}>{sub.shots}</td>
+                    <td className={td}>{formatTime(sub.durationSec, 0)}</td>
+                    <td colSpan={6} />
+                    <td className="max-w-64 truncate px-2 py-1">{sub.effectNotes}</td>
+                    <td colSpan={2} />
+                  </tr>
+                ))}
+              </Fragment>
+            ))}
+          </Table>
+        )}
+      </Panel>
+
+      <Panel title={`Roman candles (${candles.length})`}>
+        {candles.length === 0 ? (
+          <p className="text-sm text-slate-500">No roman candles yet. Place them on their own or load them into rack tubes.</p>
+        ) : (
+          <Table head={['Name', 'Brand', 'Effect', 'Shots', 'Duration', 'Lead', 'Pricing', 'Per candle', 'Cost / shot', 'Cost / sec', 'Used / owned', 'Notes', '']}>
+            {candles.map((c) => (
               <tr key={c.id} className="hover:bg-slate-800/30">
                 <NameCell item={c} />
                 <td className={td}>{c.brand}</td>
-                <td className={td}>
-                  <Badge tone={c.grade === '1.4G Pro-line' ? 'sky' : 'slate'}>{c.grade}</Badge>
-                </td>
-                <td className={td}>{c.weightClass ?? '—'}</td>
-                <td className="min-w-40 px-2 py-1.5">
-                  <CategoryLabels categories={c.categories} />
-                </td>
+                <td className="max-w-64 truncate px-2 py-1.5 text-slate-400">{c.effect}</td>
                 <td className={td}>{c.shots}</td>
                 <td className={td}>{formatTime(c.durationSec, 0)}</td>
                 <td className={td}>{c.leadDelaySec}s</td>
-                <td className={td}>{c.hasExitFuse ? 'Yes' : '—'}</td>
-                <td className={td}>{formatMoney(c.unitCost)}</td>
-                <td className={td}>
-                  <UseBadge used={used(c.id)} owned={c.qtyOwned} />
-                </td>
-                <td className="max-w-64 truncate px-2 py-1.5 text-slate-400">{c.effectNotes}</td>
+                <td className={td}>{pricingText(c)}</td>
+                <td className={td}>{formatMoney(shellUnitCost(c))}</td>
+                <td className={td}>{money(costPerShot(c))}</td>
+                <td className={td}>{money(costPerSecond(c))}</td>
+                <PackUse item={c} used={used(c.id)} />
                 <NotesCell notes={c.notes} />
                 <RowActions item={c} onEdit={() => setEditing(c)} />
+              </tr>
+            ))}
+          </Table>
+        )}
+      </Panel>
+
+      <Panel title={`Rockets (${rockets.length})`}>
+        {rockets.length === 0 ? (
+          <p className="text-sm text-slate-500">No rockets yet. Place them on their own or load them into a rocket rack.</p>
+        ) : (
+          <Table head={['Name', 'Brand', 'Effect', 'Light→burst', 'Burst', 'Pricing', 'Per rocket', 'Used / owned', 'Notes', '']}>
+            {rockets.map((r) => (
+              <tr key={r.id} className="hover:bg-slate-800/30">
+                <NameCell item={r} />
+                <td className={td}>{r.brand}</td>
+                <td className="max-w-64 truncate px-2 py-1.5 text-slate-400">{r.effect}</td>
+                <td className={td}>{r.leadDelaySec}s</td>
+                <td className={td}>{r.burstDurationSec}s</td>
+                <td className={td}>{pricingText(r)}</td>
+                <td className={td}>{formatMoney(shellUnitCost(r))}</td>
+                <PackUse item={r} used={used(r.id)} />
+                <NotesCell notes={r.notes} />
+                <RowActions item={r} onEdit={() => setEditing(r)} />
               </tr>
             ))}
           </Table>
@@ -188,20 +311,9 @@ export function InventoryTab() {
                 <td className="max-w-64 truncate px-2 py-1.5 text-slate-400">{s.effect}</td>
                 <td className={td}>{s.sizeIn}"</td>
                 <td className={td}>{s.leadDelaySec}s</td>
-                <td className={td}>
-                  {s.pricing.mode === 'case'
-                    ? `${formatMoney(s.pricing.caseCost)} / case of ${s.pricing.caseQty}`
-                    : 'Per shell'}
-                </td>
+                <td className={td}>{s.pricing.mode === 'case' ? pricingText(s) : 'Per shell'}</td>
                 <td className={td}>{formatMoney(shellUnitCost(s))}</td>
-                <td className={td}>
-                  <UseBadge used={used(s.id)} owned={s.qtyOwned} />
-                  {s.pricing.mode === 'case' && (
-                    <span className="ml-1 text-xs text-slate-500">
-                      ({Math.round((s.qtyOwned / s.pricing.caseQty) * 10) / 10} cases)
-                    </span>
-                  )}
-                </td>
+                <PackUse item={s} used={used(s.id)} />
                 <NotesCell notes={s.notes} />
                 <RowActions item={s} onEdit={() => setEditing(s)} />
               </tr>

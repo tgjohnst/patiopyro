@@ -1,4 +1,4 @@
-import { describeAddress, pinAddress } from '../model/addressing';
+import { cueDistrict, describeAddress, pinAddress, type District } from '../model/addressing';
 import type { Show } from '../model/schema';
 import type { EffectTiming, TimingResult } from './timing';
 
@@ -8,6 +8,8 @@ export interface CueEntry {
   order: number;
   time: number | null;
   note: string;
+  /** Remote district the cue is fired from, when the controller has districts. */
+  district: District | null;
   /** Module pins wired to this address, e.g. "M1 #3". */
   pins: { moduleId: string; moduleName: string; pin: number }[];
   positionIds: string[];
@@ -32,6 +34,7 @@ export function buildCueList(show: Show, timing: TimingResult): CueEntry[] {
         order: d.order,
         time: show.cueTimes[addr] ?? null,
         note: show.cueNotes[addr] ?? '',
+        district: cueDistrict(ctrl, addr),
         pins: [],
         positionIds: [],
         effects: [],

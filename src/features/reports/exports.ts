@@ -2,7 +2,7 @@ import type * as XLSXTypes from 'xlsx';
 import { buildCueList } from '../../engine/cues';
 import { downloadBlob, safeFilename } from '../../lib/file';
 import { formatTime } from '../../lib/format';
-import { itemUnitCost } from '../../model/catalog';
+import { KIND_LABEL, costPerSecond, costPerShot, itemUnitCost } from '../../model/catalog';
 import type { Show } from '../../model/schema';
 import type { Derived } from '../../store/showStore';
 
@@ -19,11 +19,15 @@ function moneyCols(XLSX: typeof XLSXTypes, ws: XLSXTypes.WorkSheet, cols: number
 }
 
 export function costRows(show: Show, d: Derived) {
-  const rows: (string | number)[][] = [['Category', 'Item', 'Detail', 'Qty', 'Unit', 'Unit cost', 'Total']];
-  for (const l of d.cost.lines) rows.push([l.category, l.name, l.detail, l.qty, l.unit, l.unitCost, l.total]);
+  const rows: (string | number)[][] = [
+    ['Category', 'Item', 'Detail', 'Qty', 'Unit', 'Unit cost', 'Cost / shot', 'Cost / sec', 'Total'],
+  ];
+  for (const l of d.cost.lines) {
+    rows.push([l.category, l.name, l.detail, l.qty, l.unit, l.unitCost, l.perShot ?? '', l.perSec ?? '', l.total]);
+  }
   rows.push([]);
-  for (const s of d.cost.subtotals) rows.push(['Subtotal', s.category, '', '', '', '', s.total]);
-  rows.push(['TOTAL', show.meta.name, '', '', '', '', d.cost.total]);
+  for (const s of d.cost.subtotals) rows.push(['Subtotal', s.category, '', '', '', '', '', '', s.total]);
+  rows.push(['TOTAL', show.meta.name, '', '', '', '', '', '', d.cost.total]);
   return rows;
 }
 
@@ -38,20 +42,80 @@ export async function exportCostXlsx(show: Show, d: Derived) {
     [],
   ];
   const cost = XLSX.utils.aoa_to_sheet([...header, ...costRows(show, d)]);
-  cost['!cols'] = [{ wch: 12 }, { wch: 32 }, { wch: 48 }, { wch: 8 }, { wch: 16 }, { wch: 12 }, { wch: 12 }];
-  moneyCols(XLSX, cost, [5, 6], header.length + 1);
+  cost['!cols'] = [
+    { wch: 14 },
+    { wch: 32 },
+    { wch: 48 },
+    { wch: 8 },
+    { wch: 16 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+  ];
+  moneyCols(XLSX, cost, [5, 6, 7, 8], header.length + 1);
   XLSX.utils.book_append_sheet(wb, cost, 'Show cost');
 
-  const invRows: (string | number)[][] = [['Kind', 'Name', 'Owned', 'Used', 'Remaining', 'Unit cost', 'Value owned', 'Value used', 'Link']];
+  const invRows: (string | number)[][] = [
+    ['Kind', 'Name', 'Owned', 'Used', 'Remaining', 'Unit cost', 'Shots', 'Duration (s)', 'Cost / shot', 'Cost / sec', 'Value owned', 'Value used', 'Link'],
+  ];
   for (const item of show.catalog) {
     const use = d.totals.inventory.find((u) => u.catalogId === item.id)?.used ?? 0;
     const unit = itemUnitCost(item);
-    invRows.push([item.kind, item.name, item.qtyOwned, use, item.qtyOwned - use, unit, unit * item.qtyOwned, unit * use, item.url]);
+    const timed = item.kind === 'cake' || item.kind === 'candle';
+    invRows.push([
+      KIND_LABEL[item.kind],
+      item.name,
+      item.qtyOwned,
+      use,
+      item.qtyOwned - use,
+      unit,
+      timed ? item.shots : '',
+      timed ? item.durationSec : '',
+      costPerShot(item) ?? '',
+      costPerSecond(item) ?? '',
+      unit * item.qtyOwned,
+      unit * use,
+      item.url,
+    ]);
+    if (item.kind === 'cake') {
+      for (const sub of item.subCakes) {
+        invRows.push([
+          'Sub cake',
+          `  ↳ ${sub.name} (+${sub.offsetSec}s)`,
+          '',
+          '',
+          '',
+          '',
+          sub.shots,
+          sub.durationSec,
+          '',
+          '',
+          '',
+          '',
+          sub.effectNotes,
+        ]);
+      }
+    }
   }
-  invRows.push([], ['TOTAL', '', '', '', '', '', d.cost.inventoryValue, '']);
+  invRows.push([], ['TOTAL', '', '', '', '', '', '', '', '', '', d.cost.inventoryValue, '']);
   const inv = XLSX.utils.aoa_to_sheet(invRows);
-  inv['!cols'] = [{ wch: 8 }, { wch: 32 }, { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 40 }];
-  moneyCols(XLSX, inv, [5, 6, 7], 1);
+  inv['!cols'] = [
+    { wch: 12 },
+    { wch: 32 },
+    { wch: 8 },
+    { wch: 8 },
+    { wch: 10 },
+    { wch: 12 },
+    { wch: 8 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 40 },
+  ];
+  moneyCols(XLSX, inv, [5, 8, 9, 10, 11], 1);
   XLSX.utils.book_append_sheet(wb, inv, 'Inventory');
 
   const fuseRows: (string | number)[][] = [
@@ -67,12 +131,13 @@ export async function exportCostXlsx(show: Show, d: Derived) {
   moneyCols(XLSX, fuse, [6, 7], 1);
   XLSX.utils.book_append_sheet(wb, fuse, 'Fuse & igniters');
 
-  const cueRows: (string | number)[][] = [['Time', 'Seconds', 'Cue', 'Module cues', 'Positions', 'Fires', 'Note']];
+  const cueRows: (string | number)[][] = [['Time', 'Seconds', 'Cue', 'District', 'Module cues', 'Positions', 'Fires', 'Note']];
   for (const c of buildCueList(show, d.timing)) {
     cueRows.push([
       c.time === null ? '—' : formatTime(c.time),
       c.time ?? '',
       c.label,
+      c.district?.label ?? '',
       c.pins.map((p) => `${p.moduleName} #${p.pin}`).join(', '),
       c.positionIds.map((id) => show.positions.find((p) => p.id === id)?.name).join(', '),
       c.effects.map((e) => e.name + (e.tubeIndex !== null ? ` #${e.tubeIndex + 1}` : '')).join(', '),
@@ -80,7 +145,7 @@ export async function exportCostXlsx(show: Show, d: Derived) {
     ]);
   }
   const cues = XLSX.utils.aoa_to_sheet(cueRows);
-  cues['!cols'] = [{ wch: 8 }, { wch: 8 }, { wch: 18 }, { wch: 20 }, { wch: 18 }, { wch: 60 }, { wch: 30 }];
+  cues['!cols'] = [{ wch: 8 }, { wch: 8 }, { wch: 18 }, { wch: 12 }, { wch: 20 }, { wch: 18 }, { wch: 60 }, { wch: 30 }];
   XLSX.utils.book_append_sheet(wb, cues, 'Cues');
 
   XLSX.writeFile(wb, safeFilename(`${show.meta.name} cost`, 'xlsx'));

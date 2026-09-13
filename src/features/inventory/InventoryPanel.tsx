@@ -1,18 +1,28 @@
 import clsx from 'clsx';
 import { useState } from 'react';
-import { KIND_LABEL, tubeCount } from '../../model/catalog';
+import { KIND_ICON, KIND_LABEL, tubeCount } from '../../model/catalog';
 import type { CatalogItem } from '../../model/schema';
 import { useDerived, useShow } from '../../store/showStore';
 import { DND_CATALOG, useUi } from '../../store/uiStore';
 
-const KIND_ICON: Record<CatalogItem['kind'], string> = { cake: '▦', shell: '●', rack: '⋮⋮' };
-
 function describe(item: CatalogItem) {
   switch (item.kind) {
     case 'cake':
-      return `${item.weightClass ? `${item.weightClass} · ` : ''}${item.shots} shots · ${item.durationSec}s${item.grade === '1.4G Pro-line' ? ' · Pro-line' : ''}`;
+      return [
+        item.weightClass,
+        `${item.shots} shots`,
+        `${item.durationSec}s`,
+        item.grade === '1.4G Pro-line' && 'Pro-line',
+        item.subCakes.length > 0 && `compound of ${item.subCakes.length}`,
+      ]
+        .filter(Boolean)
+        .join(' · ');
     case 'shell':
       return `${item.sizeIn}" · ${item.effect}`;
+    case 'rocket':
+      return item.effect || 'Rocket';
+    case 'candle':
+      return [`${item.shots} shots`, `${item.durationSec}s`, item.effect].filter(Boolean).join(' · ');
     case 'rack':
       return `${item.rows}×${item.cols} · ${tubeCount(item)} tubes`;
   }
@@ -29,7 +39,9 @@ export function InventoryPanel() {
   const filtered = catalog.filter((c) =>
     `${c.name} ${'brand' in c ? c.brand : ''}`.toLowerCase().includes(q.toLowerCase()),
   );
-  const order: CatalogItem['kind'][] = rackOpen ? ['shell', 'cake', 'rack'] : ['cake', 'rack', 'shell'];
+  const order: CatalogItem['kind'][] = rackOpen
+    ? ['shell', 'rocket', 'candle', 'cake', 'rack']
+    : ['cake', 'candle', 'rocket', 'rack', 'shell'];
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -42,8 +54,8 @@ export function InventoryPanel() {
         />
         <p className="mt-2 text-[11px] leading-snug text-slate-500">
           {tab === 'site'
-            ? 'Drag cakes and racks onto a position marker.'
-            : 'Drag cakes and racks onto the canvas. Drag shells onto rack tubes, or into an open rack.'}
+            ? 'Drag cakes, rockets, roman candles and racks onto a position marker.'
+            : 'Drag cakes, rockets, roman candles and racks onto the canvas. Drag shells, rockets and candles onto rack tubes, or into an open rack.'}
         </p>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
