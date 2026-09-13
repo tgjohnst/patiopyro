@@ -86,7 +86,7 @@ npm run preview    # serve dist/ locally (usually http://localhost:4173)
 
 The live app is at **https://tgjohnst.github.io/patiopyro/**.
 
-Every push to `main` runs `.github/workflows/deploy-pages.yml`, which installs dependencies, runs the unit tests, builds, and publishes `dist/` to GitHub Pages. To redeploy without a push, run the workflow manually from the repository's **Actions** tab.
+Every push to `main` runs `.github/workflows/deploy-pages.yml`, which runs the unit tests and build in one job and the Playwright end-to-end tests in another. `dist/` is published to GitHub Pages only if both jobs pass. When the browser tests run, the HTML report and screenshots are uploaded as a `playwright-report` artifact on the run page. To redeploy without a push, run the workflow manually from the repository's **Actions** tab.
 
 ## Testing
 
