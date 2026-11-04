@@ -1,6 +1,6 @@
 import { pinAddress, describeAddress } from '../model/addressing';
 import { isFuseable } from '../model/catalog';
-import { parseEndpoint } from '../model/endpoints';
+import { IGNITER_LEAD_COLOR, igniterLeadIds, igniterLeadName, parseEndpoint } from '../model/endpoints';
 import type { Board, CatalogItem, PlacedItem, Show } from '../model/schema';
 import { endpointNamer } from './chains';
 import type { TimingResult } from './timing';
@@ -75,6 +75,8 @@ export interface LayoutLine {
   y2: number;
   color: string;
   fuseName: string;
+  /** An igniter's lead (no fuse) rather than a fuse run. */
+  igniter: boolean;
 }
 
 export interface PositionLayout {
@@ -172,13 +174,23 @@ export function positionLayout(show: Show, positionId: string, timing: TimingRes
   }
 
   const lines: LayoutLine[] = [];
+  const leads = igniterLeadIds(show);
   for (const s of show.fuseSegments) {
     if (s.positionId !== positionId) continue;
     const a = anchors.get(s.from);
     const b = anchors.get(s.to);
     if (!a || !b || !parseEndpoint(s.from) || !parseEndpoint(s.to)) continue;
     const ft = fuse.get(s.fuseTypeId);
-    lines.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, color: ft?.color ?? '#64748b', fuseName: ft?.name ?? 'Fuse' });
+    const lead = leads.has(s.id);
+    lines.push({
+      x1: a.x,
+      y1: a.y,
+      x2: b.x,
+      y2: b.y,
+      color: lead ? IGNITER_LEAD_COLOR : (ft?.color ?? '#64748b'),
+      fuseName: lead ? igniterLeadName(show.firing.controller.igniterKind) : (ft?.name ?? 'Fuse'),
+      igniter: lead,
+    });
   }
 
   const rects = [...boards, ...boxes];

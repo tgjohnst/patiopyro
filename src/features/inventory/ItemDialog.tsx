@@ -2,8 +2,9 @@ import clsx from 'clsx';
 import { useState } from 'react';
 import { Button, Checkbox, Field, Modal, NumberInput, Select, TextInput } from '../../components/ui';
 import {
-  CATEGORY_CLASS,
+  EFFECT_CLASS,
   KIND_LABEL,
+  TAG_CLASS,
   assortmentStats,
   cakeAssortment,
   itemUnitCost,
@@ -17,10 +18,11 @@ import {
   shellUnitCost,
   subCakeEndSec,
   tubeCount,
-  type CakeCategory,
+  type CakeEffect,
+  type CakeTag,
   type PricingContext,
 } from '../../model/catalog';
-import { CAKE_CATEGORIES, CAKE_WEIGHT_CLASSES } from '../../model/constants';
+import { CAKE_EFFECTS, CAKE_TAGS, CAKE_WEIGHT_CLASSES } from '../../model/constants';
 import { uid } from '../../model/defaults';
 import type { Cake, Candle, CatalogItem, Rack, Rocket, Shell, SubCake } from '../../model/schema';
 import { upsertCatalogItem } from '../../store/actions';
@@ -44,7 +46,8 @@ export function newCatalogItem(kind: CatalogItem['kind'], opts: { assortmentId?:
         leadDelaySec: 4,
         hasExitFuse: true,
         weightClass: null,
-        categories: [],
+        tags: [],
+        effects: [],
         subCakes: [],
         assortmentId: opts.assortmentId ?? null,
         assortmentQty: 1,
@@ -106,43 +109,85 @@ function costHint(item: CatalogItem, ctx?: PricingContext): string | undefined {
   return parts.filter(Boolean).join(' · ') || undefined;
 }
 
-function CategoryPicker({
+/** Toggle buttons for a fixed list of labels; keeps the chosen ones in list order. */
+function LabelPicker<T extends string>({
   legend,
+  options,
+  classes,
   value,
   onChange,
   small,
+  square,
 }: {
   legend: string;
-  value: CakeCategory[];
-  onChange: (categories: CakeCategory[]) => void;
+  options: readonly T[];
+  classes: Record<T, string>;
+  value: T[];
+  onChange: (value: T[]) => void;
   small?: boolean;
+  /** Effects use squarer chips so they read apart from tags. */
+  square?: boolean;
 }) {
   return (
     <fieldset className="flex flex-col gap-1 text-xs">
       <legend className="mb-1 font-medium text-slate-400">{legend}</legend>
       <div className="flex flex-wrap gap-1.5">
-        {CAKE_CATEGORIES.map((cat) => {
-          const on = value.includes(cat);
+        {options.map((opt) => {
+          const on = value.includes(opt);
           return (
             <button
-              key={cat}
+              key={opt}
               type="button"
               aria-pressed={on}
-              onClick={() =>
-                onChange(on ? value.filter((c) => c !== cat) : CAKE_CATEGORIES.filter((c) => c === cat || value.includes(c)))
-              }
+              onClick={() => onChange(on ? value.filter((c) => c !== opt) : options.filter((c) => c === opt || value.includes(c)))}
               className={clsx(
-                'rounded-full font-medium ring-1 transition-colors',
+                'font-medium ring-1 transition-colors',
+                square ? 'rounded-md' : 'rounded-full',
                 small ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs',
-                on ? CATEGORY_CLASS[cat] : 'bg-transparent text-slate-500 ring-slate-700 hover:text-slate-300',
+                on ? classes[opt] : 'bg-transparent text-slate-500 ring-slate-700 hover:text-slate-300',
               )}
             >
-              {cat}
+              {opt}
             </button>
           );
         })}
       </div>
     </fieldset>
+  );
+}
+
+/** Tags and effects pickers for a cake or sub cake. */
+function TagEffectPickers({
+  value,
+  onChange,
+  small,
+  prefix = '',
+}: {
+  value: { tags: CakeTag[]; effects: CakeEffect[] };
+  onChange: (patch: { tags?: CakeTag[]; effects?: CakeEffect[] }) => void;
+  small?: boolean;
+  prefix?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <LabelPicker
+        legend={`${prefix}Tags`}
+        options={CAKE_TAGS}
+        classes={TAG_CLASS}
+        value={value.tags}
+        onChange={(tags) => onChange({ tags })}
+        small={small}
+      />
+      <LabelPicker
+        legend={`${prefix}Effects`}
+        options={CAKE_EFFECTS}
+        classes={EFFECT_CLASS}
+        value={value.effects}
+        onChange={(effects) => onChange({ effects })}
+        small={small}
+        square
+      />
+    </div>
   );
 }
 
@@ -168,7 +213,8 @@ function SubCakesEditor({ cake, onChange }: { cake: Cake; onChange: (subCakes: S
         offsetSec: last ? subCakeEndSec(last) : 0,
         durationSec: last ? 20 : cake.durationSec,
         effectNotes: last ? '' : cake.effectNotes,
-        categories: last ? [] : cake.categories,
+        tags: last ? [] : cake.tags,
+        effects: last ? [] : cake.effects,
       },
     ]);
   };
@@ -235,12 +281,7 @@ function SubCakesEditor({ cake, onChange }: { cake: Cake; onChange: (subCakes: S
           <Field label="Effect">
             <TextInput value={sub.effectNotes} onChange={(effectNotes) => update(i, { effectNotes })} />
           </Field>
-          <CategoryPicker
-            small
-            legend="Sub cake categories"
-            value={sub.categories}
-            onChange={(categories) => update(i, { categories })}
-          />
+          <TagEffectPickers small prefix="Sub cake " value={sub} onChange={(patch) => update(i, patch)} />
         </div>
       ))}
       <div className="flex flex-wrap gap-2">
@@ -487,7 +528,7 @@ export function ItemDialog({ initial, onClose }: { initial: CatalogItem; onClose
               />
             </div>
             <div className="col-span-2 md:col-span-4">
-              <CategoryPicker legend="Categories" value={item.categories} onChange={(categories) => set({ categories })} />
+              <TagEffectPickers value={item} onChange={set} />
             </div>
             <SubCakesEditor cake={item} onChange={(subCakes) => set({ subCakes })} />
           </>

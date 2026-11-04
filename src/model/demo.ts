@@ -40,7 +40,7 @@ export function createDemoShow(): Show {
     leadDelaySec: 4,
     hasExitFuse: true,
     weightClass: null,
-    categories: [],
+    tags: [], effects: [],
     subCakes: [],
     assortmentId: null,
     assortmentQty: 1,
@@ -53,7 +53,7 @@ export function createDemoShow(): Show {
     durationSec: 30,
     effectNotes: 'Gold brocade to crackle',
     weightClass: '500g',
-    categories: ['Big breaks', 'Crackle', 'Golden'],
+    tags: ['Big breaks'], effects: ['Crackle', 'Golden'],
     notes: 'Opener',
   });
   const willow = cake('Crackling Willow', {
@@ -62,7 +62,7 @@ export function createDemoShow(): Show {
     unitCost: 30,
     effectNotes: 'Hanging willow',
     weightClass: '200g',
-    categories: ['Small', 'Willow', 'Slow'],
+    tags: ['Small', 'Slow'], effects: ['Willow'],
   });
   const comets = cake('Blue Comets', {
     shots: 36,
@@ -70,7 +70,7 @@ export function createDemoShow(): Show {
     unitCost: 55,
     effectNotes: 'Blue comet fans',
     weightClass: '350g',
-    categories: ['Medium', 'Fan', 'Comets'],
+    tags: ['Medium', 'Fan'], effects: ['Comets'],
   });
   const strobe = cake('Strobe Fan', {
     shots: 49,
@@ -78,7 +78,7 @@ export function createDemoShow(): Show {
     unitCost: 65,
     effectNotes: 'White strobe Z-fan',
     weightClass: '500g',
-    categories: ['Zipper', 'Strobe', 'Fast'],
+    tags: ['Zipper', 'Fast'], effects: ['Strobe'],
   });
   const finale = cake('Pro Finale 500g', {
     qtyOwned: 1,
@@ -89,7 +89,7 @@ export function createDemoShow(): Show {
     hasExitFuse: false,
     effectNotes: 'Multicolor crossette finale',
     weightClass: '1000g+',
-    categories: ['Finale', 'Long', 'NOAB', 'Colors'],
+    tags: ['Finale', 'Long', 'NOAB'], effects: ['Peony'],
     notes: 'Stake down on a board; tall and heavy',
   });
   const compound = normalizeCake(
@@ -99,12 +99,12 @@ export function createDemoShow(): Show {
       hasExitFuse: false,
       effectNotes: 'Three cakes fused together on one lead',
       weightClass: '500g',
-      categories: ['Transition', 'Colors'],
+      tags: ['Transition'], effects: ['Peony'],
       notes: 'One lead fuse lights all three sections in turn',
       subCakes: [
-        sub('Ghost fans', { shots: 20, offsetSec: 0, durationSec: 12, effectNotes: 'Blue-to-green ghost comets', categories: ['Ghost', 'Fan'] }),
-        sub('Strobe crossfire', { shots: 30, offsetSec: 12, durationSec: 10, effectNotes: 'White strobe Z-pattern', categories: ['Strobe', 'Fast'] }),
-        sub('Golden willow', { shots: 16, offsetSec: 22, durationSec: 18, effectNotes: 'Slow hanging gold', categories: ['Golden', 'Willow', 'Slow'] }),
+        sub('Ghost fans', { shots: 20, offsetSec: 0, durationSec: 12, effectNotes: 'Blue-to-green ghost comets', tags: ['Fan'], effects: ['Ghost'] }),
+        sub('Strobe crossfire', { shots: 30, offsetSec: 12, durationSec: 10, effectNotes: 'White strobe Z-pattern', tags: ['Fast'], effects: ['Strobe'] }),
+        sub('Golden willow', { shots: 16, offsetSec: 22, durationSec: 18, effectNotes: 'Slow hanging gold', tags: ['Slow'], effects: ['Golden', 'Willow'] }),
       ],
     }),
   );

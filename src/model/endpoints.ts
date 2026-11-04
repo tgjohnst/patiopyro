@@ -54,3 +54,20 @@ export function endpointFromHandle(nodeId: string, handle: string | null, isFuse
   if (handle?.startsWith('t')) return tubeKey(nodeId, Number(handle.slice(1)));
   return null;
 }
+
+/**
+ * Fuse runs attached to an igniter are its e-match (or Talon) lead: the igniter lights whatever
+ * the run touches instantly, so these runs have no burn time and use no fuse.
+ */
+export function igniterLeadIds(show: {
+  fuseNodes: { id: string; kind: string }[];
+  fuseSegments: { id: string; from: string; to: string }[];
+}): Set<string> {
+  const igniters = new Set(show.fuseNodes.filter((n) => n.kind === 'igniter').map((n) => nodeKey(n.id)));
+  return new Set(show.fuseSegments.filter((s) => igniters.has(s.from) || igniters.has(s.to)).map((s) => s.id));
+}
+
+/** Drawing color for igniter leads, distinct from every fuse type. */
+export const IGNITER_LEAD_COLOR = '#38bdf8';
+
+export const igniterLeadName = (kind: 'ematch' | 'talon') => (kind === 'talon' ? 'Talon lead' : 'E-match lead');

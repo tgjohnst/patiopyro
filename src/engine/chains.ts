@@ -1,10 +1,11 @@
 import { describeAddress, pinAddress } from '../model/addressing';
-import { inKey, nodeKey, outKey, parseEndpoint, tubeKey } from '../model/endpoints';
+import { IGNITER_LEAD_COLOR, igniterLeadIds, igniterLeadName, inKey, nodeKey, outKey, parseEndpoint, tubeKey } from '../model/endpoints';
 import type { CatalogItem, FiringModule, PlacedItem, Position, Rack, Show } from '../model/schema';
 import type { EffectTiming, TimingResult } from './timing';
 
 export interface ChainStep {
-  kind: 'fuse' | 'burn';
+  /** fuse: a fuse run; burn: through a cake to its exit fuse; ignite: an igniter lighting what it touches. */
+  kind: 'fuse' | 'burn' | 'ignite';
   from: string;
   to: string;
   fuseName?: string;
@@ -45,6 +46,8 @@ export interface RackSheet {
     fuseName: string;
     color: string;
     lengthIn: number;
+    /** The igniter itself is on this tube (no fuse). */
+    igniter: boolean;
     /** true: fire enters the rack here; false: it leaves; null: not timed. */
     entering: boolean | null;
   }[];
@@ -111,6 +114,8 @@ export function buildPositionSheets(show: Show, timing: TimingResult): PositionS
   const catalog = new Map(show.catalog.map((c) => [c.id, c]));
   const fuse = new Map(show.fuseTypes.map((f) => [f.id, f]));
   const ctrl = show.firing.controller;
+  const leads = igniterLeadIds(show);
+  const leadName = igniterLeadName(ctrl.igniterKind);
 
   return show.positions.map((position) => {
     const name = endpointNamer(show, position.id);
@@ -153,15 +158,19 @@ export function buildPositionSheets(show: Show, timing: TimingResult): PositionS
           usedSegs.add(s.id);
           const other = s.from === key ? s.to : s.from;
           const ft = fuse.get(s.fuseTypeId);
-          steps.push({
-            kind: 'fuse',
-            from: name(key),
-            to: name(other),
-            fuseName: ft?.name ?? 'Unknown fuse',
-            fuseColor: ft?.color,
-            lengthIn: s.lengthIn,
-            arriveSec: arrive(other),
-          });
+          steps.push(
+            leads.has(s.id)
+              ? { kind: 'ignite', from: name(key), to: name(other), fuseName: leadName, fuseColor: IGNITER_LEAD_COLOR, arriveSec: arrive(other) }
+              : {
+                  kind: 'fuse',
+                  from: name(key),
+                  to: name(other),
+                  fuseName: ft?.name ?? 'Unknown fuse',
+                  fuseColor: ft?.color,
+                  lengthIn: s.lengthIn,
+                  arriveSec: arrive(other),
+                },
+          );
           if (!visited.has(other)) {
             visited.add(other);
             queue.push(other);
@@ -213,7 +222,10 @@ export function buildPositionSheets(show: Show, timing: TimingResult): PositionS
           const aIn = a?.kind === 'tube' && a.placedId === p.id;
           const bIn = b?.kind === 'tube' && b.placedId === p.id;
           const ft = fuse.get(s.fuseTypeId);
-          const common = { fuseName: ft?.name ?? '?', color: ft?.color ?? '#64748b', lengthIn: s.lengthIn };
+          const lead = leads.has(s.id);
+          const common = lead
+            ? { fuseName: leadName, color: IGNITER_LEAD_COLOR, lengthIn: 0 }
+            : { fuseName: ft?.name ?? '?', color: ft?.color ?? '#64748b', lengthIn: s.lengthIn };
           if (aIn && bIn) {
             const ta = arrive(s.from);
             const tb = arrive(s.to);
@@ -232,7 +244,8 @@ export function buildPositionSheets(show: Show, timing: TimingResult): PositionS
             links.push({
               index: tubeEnd.index,
               other: name(otherKey),
-              entering: tTube !== null && tOther !== null ? tOther <= tTube : null,
+              entering: lead ? true : tTube !== null && tOther !== null ? tOther <= tTube : null,
+              igniter: lead,
               ...common,
             });
           }

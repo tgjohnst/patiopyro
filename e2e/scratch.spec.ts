@@ -29,7 +29,7 @@ test('build a show from scratch, undo, autosave and print', async ({ page }) => 
   await page.getByRole('button', { name: 'Save' }).click();
   const cakeRow = page.getByRole('row', { name: /Test Cake/ });
   await expect(cakeRow).toContainText('500g');
-  await expect(cakeRow).toContainText('FinaleZipper');
+  await expect(cakeRow.getByTestId('cake-tags')).toHaveText('FinaleZipper');
   await expect(cakeRow).toContainText('Bought at the tent sale');
   await expect(page.getByRole('cell', { name: /^Test Cake/ })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Open link for Test Cake' })).toHaveAttribute(
@@ -42,7 +42,8 @@ test('build a show from scratch, undo, autosave and print', async ({ page }) => 
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Name').fill('Combo Cake');
   await dialog.getByLabel('Cost (each)').fill('66');
-  await dialog.getByRole('button', { name: 'Ghost', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Ghost', exact: true }).click(); // an effect
+  await dialog.getByRole('button', { name: 'Transition', exact: true }).click(); // a tag
   await dialog.getByRole('button', { name: '+ Sub cake' }).click();
   await dialog.getByRole('button', { name: '+ Sub cake' }).click();
   const sub1 = dialog.getByTestId('sub-cake-1');
@@ -59,6 +60,8 @@ test('build a show from scratch, undo, autosave and print', async ({ page }) => 
   await expect(dialog.getByLabel('Shots').first()).toHaveValue('33');
   await page.getByRole('button', { name: 'Save' }).click();
   const comboRow = page.getByRole('row', { name: /Combo Cake/ });
+  await expect(comboRow.getByTestId('cake-tags')).toHaveText('Transition');
+  await expect(comboRow.getByTestId('cake-effects')).toHaveText('Ghost');
   await expect(comboRow).toContainText('Compound ×2');
   await expect(comboRow).toContainText('0:22');
   await expect(comboRow).toContainText('$2.00'); // $66 / 33 shots

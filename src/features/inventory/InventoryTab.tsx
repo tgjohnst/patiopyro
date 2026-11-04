@@ -2,7 +2,8 @@ import clsx from 'clsx';
 import { Fragment, useState, type ReactNode } from 'react';
 import { Badge, Button, NumberInput, Panel, TextInput } from '../../components/ui';
 import {
-  CATEGORY_CLASS,
+  EFFECT_CLASS,
+  TAG_CLASS,
   PIECE_NOUNS,
   assortmentStats,
   cakeAssortment,
@@ -17,7 +18,7 @@ import {
 } from '../../model/catalog';
 import { uid } from '../../model/defaults';
 import { LEGACY_DEFAULT_WORKSHEET_SUPPLIES } from '../../model/constants';
-import type { Assortment, Cake, CatalogItem, FuseType, Supply } from '../../model/schema';
+import type { Assortment, CatalogItem, FuseType, Supply } from '../../model/schema';
 import {
   addSupplies,
   deleteAssortment,
@@ -29,10 +30,11 @@ import {
   upsertFuseType,
   upsertSupply,
 } from '../../store/actions';
-import { useDerived, useShow } from '../../store/showStore';
+import { getShow, useDerived, useShow } from '../../store/showStore';
 import { formatMoney, formatTime } from '../../lib/format';
 import { AssortmentDialog, newAssortment } from './AssortmentDialog';
 import { ItemDialog, newCatalogItem } from './ItemDialog';
+import { exportInventoryCsv, exportInventoryXlsx } from './inventoryExport';
 
 function UseBadge({ used, owned }: { used: number; owned: number }) {
   return (
@@ -99,15 +101,19 @@ function NotesCell({ notes }: { notes: string }) {
   );
 }
 
-function CategoryLabels({ categories }: { categories: Cake['categories'] }) {
+function Labels<T extends string>({ values, classes, square }: { values: T[]; classes: Record<T, string>; square?: boolean }) {
   return (
     <div className="flex flex-wrap gap-1">
-      {categories.map((cat) => (
+      {values.map((v) => (
         <span
-          key={cat}
-          className={clsx('rounded-full px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap ring-1', CATEGORY_CLASS[cat])}
+          key={v}
+          className={clsx(
+            'px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap ring-1',
+            square ? 'rounded' : 'rounded-full',
+            classes[v],
+          )}
         >
-          {cat}
+          {v}
         </span>
       ))}
     </div>
@@ -180,7 +186,15 @@ export function InventoryTab() {
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-4 p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="mr-auto text-lg font-semibold">Inventory</h1>
+        <h1 className="text-lg font-semibold">Inventory</h1>
+        <div className="mr-auto flex gap-1">
+          <Button size="sm" variant="ghost" onClick={() => void exportInventoryXlsx(getShow(), used)} title="Every section on its own sheet">
+            ⬇ Export .xlsx
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => exportInventoryCsv(getShow(), used)}>
+            ⬇ .csv
+          </Button>
+        </div>
         <Button variant="primary" onClick={() => setEditingAssortment(newAssortment())}>
           + Assortment
         </Button>
@@ -251,7 +265,7 @@ export function InventoryTab() {
           <p className="text-sm text-slate-500">No cakes yet.</p>
         ) : (
           <Table
-            head={['Name', 'Brand', 'Grade', 'Weight', 'Categories', 'Shots', 'Duration', 'Lead', 'Exit fuse', 'Cost', 'Cost / shot', 'Cost / sec', 'Used / owned', 'Effect', 'Notes', '']}
+            head={['Name', 'Brand', 'Grade', 'Weight', 'Tags', 'Effects', 'Shots', 'Duration', 'Lead', 'Exit fuse', 'Cost', 'Cost / shot', 'Cost / sec', 'Used / owned', 'Effect', 'Notes', '']}
           >
             {cakes.map((c) => (
               <Fragment key={c.id}>
@@ -279,8 +293,11 @@ export function InventoryTab() {
                     <Badge tone={c.grade === '1.4G Pro-line' ? 'sky' : 'slate'}>{c.grade}</Badge>
                   </td>
                   <td className={td}>{c.weightClass ?? '—'}</td>
-                  <td className="min-w-40 px-2 py-1.5">
-                    <CategoryLabels categories={c.categories} />
+                  <td className="min-w-32 px-2 py-1.5" data-testid="cake-tags">
+                    <Labels values={c.tags} classes={TAG_CLASS} />
+                  </td>
+                  <td className="min-w-32 px-2 py-1.5" data-testid="cake-effects">
+                    <Labels values={c.effects} classes={EFFECT_CLASS} square />
                   </td>
                   <td className={td}>{c.shots}</td>
                   <td className={td}>{formatTime(c.durationSec, 0)}</td>
@@ -306,7 +323,10 @@ export function InventoryTab() {
                       {formatTime(sub.offsetSec)}–{formatTime(subCakeEndSec(sub))} after first shot
                     </td>
                     <td className="px-2 py-1">
-                      <CategoryLabels categories={sub.categories} />
+                      <Labels values={sub.tags} classes={TAG_CLASS} />
+                    </td>
+                    <td className="px-2 py-1">
+                      <Labels values={sub.effects} classes={EFFECT_CLASS} square />
                     </td>
                     <td className={td}>{sub.shots}</td>
                     <td className={td}>{formatTime(sub.durationSec, 0)}</td>

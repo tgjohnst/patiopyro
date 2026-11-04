@@ -11,10 +11,10 @@ import {
   sequenceSubCakes,
   shellUnitCost,
 } from '../model/catalog';
-import { LEGACY_DEFAULT_WORKSHEET_SUPPLIES } from '../model/constants';
+import { CAKE_EFFECTS, CAKE_TAGS, LEGACY_DEFAULT_WORKSHEET_SUPPLIES } from '../model/constants';
 import { createEmptyShow } from '../model/defaults';
 import { createDemoShow } from '../model/demo';
-import { inKey, nodeKey, outKey, tubeKey } from '../model/endpoints';
+import { igniterLeadIds, inKey, nodeKey, outKey, tubeKey } from '../model/endpoints';
 import { controllerFromPreset, presetById } from '../model/presets';
 import type { Assortment, Cake, Candle, FiringModule, Rack, Rocket, Shell, Show, SubCake } from '../model/schema';
 import { parseShow } from '../model/schema';
@@ -46,7 +46,8 @@ function cake(id: string, overrides: Partial<Cake> = {}): Cake {
     leadDelaySec: 3,
     hasExitFuse: true,
     weightClass: null,
-    categories: [],
+    tags: [],
+    effects: [],
     subCakes: [],
     assortmentId: null,
     assortmentQty: 1,
@@ -89,8 +90,8 @@ function candle(id: string, overrides: Partial<Candle> = {}): Candle {
   };
 }
 
-function sub(name: string, shots: number, offsetSec: number, durationSec: number, categories: SubCake['categories'] = []): SubCake {
-  return { id: name, name, shots, offsetSec, durationSec, effectNotes: '', categories };
+function sub(name: string, shots: number, offsetSec: number, durationSec: number, tags: SubCake['tags'] = []): SubCake {
+  return { id: name, name, shots, offsetSec, durationSec, effectNotes: '', tags, effects: [] };
 }
 
 function shell(id: string, overrides: Partial<Shell> = {}): Shell {
@@ -209,16 +210,18 @@ describe('timing', () => {
       { id: 'j', kind: 'junction', positionId: pos, x: 0, y: 0 },
     ];
     show.fuseSegments = [
+      // The igniter's lead lights the junction instantly; the length on it is ignored
       { id: 's1', positionId: pos, from: nodeKey('ig'), to: nodeKey('j'), fuseTypeId: GREEN, lengthIn: 2 },
       { id: 's2', positionId: pos, from: nodeKey('j'), to: inKey('pA'), fuseTypeId: GREEN, lengthIn: 1 },
       { id: 's3', positionId: pos, from: inKey('pB'), to: nodeKey('j'), fuseTypeId: GREEN, lengthIn: 4 },
-      // A slow long path to B that must lose to the junction path
-      { id: 's4', positionId: pos, from: nodeKey('ig'), to: inKey('pB'), fuseTypeId: GREEN, lengthIn: 24 },
+      // A slow long path to B (via A's lead fuse) that must lose to the junction path
+      { id: 's4', positionId: pos, from: inKey('pA'), to: inKey('pB'), fuseTypeId: GREEN, lengthIn: 24 },
     ];
     show.cueTimes = { [flatAddressId(1)]: 0 };
     const t = computeTiming(show);
-    expect(t.effects.find((e) => e.placedId === 'pA')!.igniteSec).toBeCloseTo(7.5);
-    expect(t.effects.find((e) => e.placedId === 'pB')!.igniteSec).toBeCloseTo(15);
+    expect(t.arrivals.get(nodeKey('j'))!.t).toBe(0);
+    expect(t.effects.find((e) => e.placedId === 'pA')!.igniteSec).toBeCloseTo(2.5);
+    expect(t.effects.find((e) => e.placedId === 'pB')!.igniteSec).toBeCloseTo(10);
   });
 
   it('times rack tubes fused in series and reports unloaded fuse as unscheduled', () => {
@@ -272,11 +275,13 @@ describe('timing', () => {
       { id: 'ig', kind: 'igniter', positionId: pos, x: 0, y: 0, moduleId: 'M1', pin: 1 },
       { id: 'j1', kind: 'junction', positionId: pos, x: 0, y: 0 },
       { id: 'j2', kind: 'junction', positionId: pos, x: 0, y: 0 },
+      { id: 'j3', kind: 'junction', positionId: pos, x: 0, y: 0 },
     ];
     show.fuseSegments = [
-      { id: 'a', positionId: pos, from: nodeKey('ig'), to: nodeKey('j1'), fuseTypeId: GREEN, lengthIn: 1 },
+      { id: 'a', positionId: pos, from: nodeKey('ig'), to: nodeKey('j1'), fuseTypeId: GREEN, lengthIn: 0 },
       { id: 'b', positionId: pos, from: nodeKey('j1'), to: nodeKey('j2'), fuseTypeId: GREEN, lengthIn: 1 },
-      { id: 'c', positionId: pos, from: nodeKey('j2'), to: nodeKey('ig'), fuseTypeId: GREEN, lengthIn: 1 },
+      { id: 'c', positionId: pos, from: nodeKey('j2'), to: nodeKey('j3'), fuseTypeId: GREEN, lengthIn: 1 },
+      { id: 'd', positionId: pos, from: nodeKey('j3'), to: nodeKey('j1'), fuseTypeId: GREEN, lengthIn: 1 },
     ];
     show.cueTimes = { [flatAddressId(1)]: 0 };
     const t = computeTiming(show);
@@ -295,12 +300,17 @@ describe('totals and cost', () => {
     show.fuseNodes = [
       { id: 'i1', kind: 'igniter', positionId: pos, x: 0, y: 0, moduleId: 'M1', pin: 1 },
       { id: 'i2', kind: 'igniter', positionId: pos, x: 0, y: 0, moduleId: 'M1', pin: 2 },
+      { id: 'j1', kind: 'junction', positionId: pos, x: 0, y: 0 },
+      { id: 'j2', kind: 'junction', positionId: pos, x: 0, y: 0 },
     ];
     show.fuseSegments = [
-      { id: 'a', positionId: pos, from: nodeKey('i1'), to: nodeKey('i2'), fuseTypeId: GREEN, lengthIn: 118 },
+      // Igniter leads use no fuse, whatever length they carry
+      { id: 'lead', positionId: pos, from: nodeKey('i1'), to: nodeKey('j1'), fuseTypeId: GREEN, lengthIn: 50 },
+      { id: 'a', positionId: pos, from: nodeKey('j1'), to: nodeKey('j2'), fuseTypeId: GREEN, lengthIn: 118 },
     ];
     const totals = computeTotals(show);
     const green = totals.fuse[0];
+    expect(green.segments).toBe(1);
     expect(green.rawIn).toBe(118);
     expect(green.totalIn).toBeCloseTo(132); // (118 + 2) * 1.1
     expect(green.rolls).toBe(2);
@@ -369,11 +379,12 @@ describe('show file', () => {
   it('fills in cake classification, supplies and boards for older files', () => {
     const raw = JSON.parse(JSON.stringify(baseShow()));
     delete raw.catalog[0].weightClass;
-    delete raw.catalog[0].categories;
+    delete raw.catalog[0].tags;
+    delete raw.catalog[0].effects;
     delete raw.supplies;
     delete raw.boards;
     const show = parseShow(raw);
-    expect(show.catalog[0]).toMatchObject({ weightClass: null, categories: [] });
+    expect(show.catalog[0]).toMatchObject({ weightClass: null, tags: [], effects: [] });
     expect(show.supplies).toEqual([]);
     expect(show.boards).toEqual([]);
   });
@@ -433,11 +444,29 @@ describe('web links', () => {
   });
 });
 
-describe('cake categories', () => {
-  it('accepts ghost, colors, strobe, transition, fast, golden and slow', () => {
+describe('cake tags and effects', () => {
+  it('accepts every tag and effect', () => {
     const raw = JSON.parse(JSON.stringify(baseShow()));
-    raw.catalog[0].categories = ['Ghost', 'Colors', 'Strobe', 'Transition', 'Fast', 'Golden', 'Slow'];
-    expect((parseShow(raw).catalog[0] as Cake).categories).toHaveLength(7);
+    raw.catalog[0].tags = [...CAKE_TAGS];
+    raw.catalog[0].effects = [...CAKE_EFFECTS];
+    const loaded = parseShow(raw).catalog[0] as Cake;
+    expect(loaded.tags).toHaveLength(12);
+    expect(loaded.effects).toHaveLength(24);
+    raw.catalog[0].effects = ['Crackle', 'Finale'];
+    expect(() => parseShow(raw)).toThrow(/effects/);
+  });
+
+  it('splits the old categories list into tags and effects, dropping Colors', () => {
+    const raw = JSON.parse(JSON.stringify(baseShow()));
+    const old = raw.catalog[0];
+    delete old.tags;
+    delete old.effects;
+    old.categories = ['Big breaks', 'Crackle', 'Colors', 'Slow', 'Golden'];
+    old.subCakes = [{ id: 's', name: 'S', shots: 5, offsetSec: 0, durationSec: 5, effectNotes: '', categories: ['Ghost', 'Fan'] }];
+    const cakeA = parseShow(raw).catalog[0] as Cake;
+    expect(cakeA).toMatchObject({ tags: ['Big breaks', 'Slow'], effects: ['Crackle', 'Golden'] });
+    expect(cakeA).not.toHaveProperty('categories');
+    expect(cakeA.subCakes[0]).toMatchObject({ tags: ['Fan'], effects: ['Ghost'] });
   });
 });
 
@@ -447,7 +476,7 @@ describe('compound cakes', () => {
     const pos = show.positions[0].id;
     const compound = normalizeCake(
       cake('C', {
-        subCakes: [sub('Ghost', 20, 0, 12, ['Ghost']), sub('Strobe', 30, 12, 10, ['Strobe', 'Fast']), sub('Golden', 16, 22, 18)],
+        subCakes: [sub('Ghost', 20, 0, 12, ['Fan']), sub('Strobe', 30, 12, 10, ['Fast']), sub('Golden', 16, 22, 18)],
       }),
     );
     expect(compound).toMatchObject({ shots: 66, durationSec: 40 });
@@ -727,6 +756,50 @@ describe('districts', () => {
   });
 });
 
+describe('igniter leads', () => {
+  function leadShow() {
+    const show = baseShow();
+    const pos = show.positions[0].id;
+    show.placed = [
+      { id: 'pA', catalogId: 'A', positionId: pos, x: 0, y: 0, label: '' },
+      { id: 'pB', catalogId: 'B', positionId: pos, x: 0, y: 0, label: '' },
+    ];
+    show.fuseNodes = [{ id: 'ig', kind: 'igniter', positionId: pos, x: 0, y: 0, moduleId: 'M1', pin: 1 }];
+    show.fuseSegments = [
+      { id: 'lead', positionId: pos, from: nodeKey('ig'), to: inKey('pA'), fuseTypeId: GREEN, lengthIn: 12 },
+      { id: 'run', positionId: pos, from: outKey('pA'), to: inKey('pB'), fuseTypeId: GREEN, lengthIn: 4 },
+    ];
+    show.cueTimes = { [flatAddressId(1)]: 30 };
+    return show;
+  }
+
+  it('lights what the igniter touches at the cue time, with no fuse', () => {
+    const show = leadShow();
+    expect([...igniterLeadIds(show)]).toEqual(['lead']);
+    const t = computeTiming(show);
+    // A lights at 30 s (not 30 + 12 in of green visco); B after A burns out and 4 in of fuse
+    expect(t.effects.map((e) => [e.placedId, e.igniteSec])).toEqual([
+      ['pA', 30],
+      ['pB', 30 + 3 + 20 + 10],
+    ]);
+    const fuse = computeTotals(show).fuse;
+    expect(fuse.map((f) => [f.segments, f.rawIn])).toEqual([[1, 4]]);
+  });
+
+  it('describes the lead as attaching the e-match on the worksheet and layout', () => {
+    const show = leadShow();
+    const timing = computeTiming(show);
+    const [sheet] = buildPositionSheets(show, timing);
+    expect(sheet.chains[0].steps[0]).toMatchObject({ kind: 'ignite', to: 'A lead fuse', fuseName: 'E-match lead', arriveSec: 30 });
+    expect(sheet.chains[0].steps[0]).not.toHaveProperty('lengthIn');
+    const lines = positionLayout(show, show.positions[0].id, timing).lines;
+    expect(lines.map((l) => [l.igniter, l.fuseName])).toEqual([
+      [true, 'E-match lead'],
+      [false, 'Green visco (3 mm)'],
+    ]);
+  });
+});
+
 describe('rack worksheet diagram', () => {
   it('orients tube runs the way fire travels and shows where fuse joins the rack', () => {
     const show = baseShow();
@@ -748,9 +821,9 @@ describe('rack worksheet diagram', () => {
     ]);
     expect(rackSheet.runs[0].color).toBe('#22c55e');
     expect(rackSheet.links).toEqual([
-      expect.objectContaining({ index: 2, other: 'E-match on M1 #1', entering: true, fuseName: 'Quickmatch' }),
+      expect.objectContaining({ index: 2, other: 'E-match on M1 #1', entering: true, igniter: true, fuseName: 'E-match lead' }),
     ]);
-    // 2 in of green visco is 5 s per link; the inch of quickmatch adds a few milliseconds.
-    expect(rackSheet.tubes.map((x) => x.litSec)).toEqual([expect.closeTo(10, 1), expect.closeTo(5, 1), expect.closeTo(0, 1)]);
+    // 2 in of green visco is 5 s per link; the e-match lights tube 3 at the cue time.
+    expect(rackSheet.tubes.map((x) => x.litSec)).toEqual([10, 5, 0]);
   });
 });

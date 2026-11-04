@@ -1,4 +1,5 @@
 import { controllerCapacity, pinAddress } from '../model/addressing';
+import { igniterLeadIds } from '../model/endpoints';
 import type { CatalogItem, Show } from '../model/schema';
 
 export interface FuseTotal {
@@ -44,7 +45,9 @@ export function computeTotals(show: Show): Totals {
   const ctrl = show.firing.controller;
 
   const byType = new Map<string, FuseTotal>();
+  const leads = igniterLeadIds(show);
   for (const seg of show.fuseSegments) {
+    if (leads.has(seg.id)) continue; // igniter leads use no fuse
     const ft =
       show.fuseTypes.find((f) => f.id === seg.fuseTypeId) ??
       show.fuseTypes.find((f) => f.id === settings.defaultFuseTypeId);

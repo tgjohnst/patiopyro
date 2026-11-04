@@ -277,7 +277,11 @@ export function Worksheet() {
                     {box}
                     <span>
                       <span className="mr-1 text-gray-500">{i + 1}.</span>
-                      {s.kind === 'fuse' ? (
+                      {s.kind === 'ignite' ? (
+                        <>
+                          Attach the {(s.fuseName ?? 'igniter').replace(/ lead$/, '').toLowerCase()} to <b>{s.to}</b>; it lights instantly
+                        </>
+                      ) : s.kind === 'fuse' ? (
                         <>
                           {s.from} → <b>{formatLengthIn(s.lengthIn ?? 0, u)} {s.fuseName}</b> → {s.to}
                         </>
@@ -367,8 +371,9 @@ function LayoutDiagram({ layout, units }: { layout: PositionLayout; units: Show[
   if (!bounds) return <p className="text-xs text-gray-500">Nothing placed at this position.</p>;
   const pad = 20;
   const vb = [bounds.x - pad, bounds.y - pad, bounds.w + pad * 2, bounds.h + pad * 2];
-  const fuses = [...new Map(lines.map((l) => [l.fuseName, l.color])).entries()];
+  const fuses = [...new Map(lines.filter((l) => !l.igniter).map((l) => [l.fuseName, l.color])).entries()];
   const dash = (name: string) => DASHES[fuses.findIndex(([n]) => n === name) % DASHES.length];
+  const lead = lines.find((l) => l.igniter);
   return (
     <div className="avoid-break">
       <svg viewBox={vb.join(' ')} className="block max-h-[420px] w-full" data-testid="position-layout">
@@ -381,7 +386,16 @@ function LayoutDiagram({ layout, units }: { layout: PositionLayout; units: Show[
           </g>
         ))}
         {lines.map((l, i) => (
-          <line key={i} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke={l.color} strokeWidth={3} strokeDasharray={dash(l.fuseName)} />
+          <line
+            key={i}
+            x1={l.x1}
+            y1={l.y1}
+            x2={l.x2}
+            y2={l.y2}
+            stroke={l.color}
+            strokeWidth={l.igniter ? 2 : 3}
+            strokeDasharray={l.igniter ? LEAD_DASH : dash(l.fuseName)}
+          />
         ))}
         {boxes.map((b) => {
           if (b.kind === 'junction') {
@@ -431,8 +445,16 @@ function LayoutDiagram({ layout, units }: { layout: PositionLayout; units: Show[
           );
         })}
       </svg>
-      {fuses.length > 0 && (
+      {(fuses.length > 0 || lead) && (
         <div className="mt-0.5 flex flex-wrap gap-x-4 text-[11px] text-gray-700">
+          {lead && (
+            <span className="inline-flex items-center gap-1">
+              <svg width={26} height={6} aria-hidden>
+                <line x1={0} y1={3} x2={26} y2={3} stroke={lead.color} strokeWidth={2} strokeDasharray={LEAD_DASH} />
+              </svg>
+              {lead.fuseName} (instant, no fuse)
+            </span>
+          )}
           {fuses.map(([name, color]) => (
             <span key={name} className="inline-flex items-center gap-1">
               <svg width={26} height={6} aria-hidden>
@@ -448,6 +470,9 @@ function LayoutDiagram({ layout, units }: { layout: PositionLayout; units: Show[
   );
 }
 
+/** Igniter leads are drawn dotted so they never read as a fuse run. */
+const LEAD_DASH = '1 4';
+
 /** Dash patterns so fuse types stay distinguishable on a black-and-white printout. */
 const DASHES = [undefined, '7 3', '2 2.5', '9 3 2 3'];
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -462,7 +487,7 @@ function RackDiagram({ sheet, units }: { sheet: RackSheet; units: Show['settings
   const cy = (i: number) => pad + Math.floor(i / rack.cols) * C + C / 2;
   const w = pad * 2 + rack.cols * C;
   const h = pad * 2 + rack.rows * C;
-  const fuses = [...new Map([...runs, ...links].map((f) => [f.fuseName, f.color])).entries()];
+  const fuses = [...new Map([...runs, ...links.filter((l) => !l.igniter)].map((f) => [f.fuseName, f.color])).entries()];
   const dash = (name: string) => DASHES[fuses.findIndex(([n]) => n === name) % DASHES.length];
   const letter = (n: number) => String.fromCharCode(65 + (n % 26));
   const tubeLetters = new Map<number, string>();
@@ -558,9 +583,16 @@ function RackDiagram({ sheet, units }: { sheet: RackSheet; units: Show['settings
             <li key={n} className="flex">
               {box}
               <span>
-                <b>{letter(n)}</b>: tube {l.index + 1} {l.entering === false ? '→' : '←'} {formatLengthIn(l.lengthIn, units)}{' '}
-                {l.fuseName} {l.entering === false ? '→' : '←'} {l.other}
-                {l.entering !== null && (
+                <b>{letter(n)}</b>: tube {l.index + 1}{' '}
+                {l.igniter ? (
+                  <>← {l.other} (attached directly; it lights the tube instantly)</>
+                ) : (
+                  <>
+                    {l.entering === false ? '→' : '←'} {formatLengthIn(l.lengthIn, units)} {l.fuseName}{' '}
+                    {l.entering === false ? '→' : '←'} {l.other}
+                  </>
+                )}
+                {!l.igniter && l.entering !== null && (
                   <span className="text-gray-500"> ({l.entering ? 'fire enters the rack here' : 'fire leaves the rack here'})</span>
                 )}
               </span>

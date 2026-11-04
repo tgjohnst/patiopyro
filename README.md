@@ -16,14 +16,17 @@ There is no server. Your show autosaves in the browser, and you can save or open
 
 - **Inventory**
   - Cakes: shots, duration, lead delay, exit fuse, 1.4G / 1.4G Pro-line grade, brand, cost.
-  - Cake weight class (200g, 350g, 500g, 1000g+) and color-coded category labels (big breaks, small, medium, long, finale, zipper, NOAB, fan, barrage, ghost, colors, strobe, transition, fast, golden, slow and more).
-  - Compound cakes: break a cake into its fused sub cakes, each with shots, start time, duration, effect and categories. The cake's shots and duration come from its sub cakes.
+  - Cake weight class (200g, 350g, 500g, 1000g+) and color-coded labels in two groups:
+    - Tags for how a cake fires: big breaks, small, medium, long, finale, zipper, NOAB, fan, barrage, transition, fast, slow.
+    - Effects for what it looks like: crackle, strobe, willow, comets, mines, ghost, neon, golden, dahlia, peony, chrysanthemum, brocade, palm, flying fish, ring, crossette, special, tourbillion, pistil, coconut, girandola, horsetail, nishiki, salute.
+  - Compound cakes: break a cake into its fused sub cakes, each with shots, start time, duration, effect notes, tags and effects. The cake's shots and duration come from its sub cakes.
   - Assortments: packs of cakes bought for one price. Tag each cake with its assortment (and how many come in it); the assortment's shots and duration come from its cakes, so cost per shot and per second are worked out across the whole assortment, and each cake's cost is its share of the price by shots.
   - Cost per shot and cost per second for cakes and roman candles.
   - Rockets (light-to-burst, burst time) and roman candles (shots, duration, lead delay), priced each or by the pack.
   - Shells: effect, size, light-to-burst time, per-shell or bulk-case pricing.
   - Racks: rows × tubes, tube size and spacing.
   - Used vs. owned counts and notes for every item.
+  - Inventory export: `.xlsx` with a sheet per section (cakes, sub cakes, roman candles, rockets, shells, racks, assortments, supplies, fuse), or one `.csv` with every section.
   - Supplies: fuse tape, stakes, PPE and anything else the show needs, with quantity needed, quantity owned and cost. Supplies with a quantity needed go on the setup worksheet's shopping list and into the show cost. A new show starts with none; "Add common supplies" fills in a starter list.
 - **Fuse library:** green visco, fast visco, time fuse, black match and quickmatch, with editable burn rates and roll pricing (20 ft rolls by default). Pick the default type, set any run's type individually, or apply one type to a whole position.
 - **Site map:** a top-down, to-scale yard.
@@ -33,7 +36,7 @@ There is no server. Your show autosaves in the browser, and you can save or open
   - Drop inventory onto a position to place it.
 - **Position layout:** a node canvas per position.
   - Drag cakes and racks in from the inventory.
-  - Add igniters (e-match or Talon) on module cues.
+  - Add igniters (e-match or Talon) on module cues. A run from an igniter is its e-match (or Talon) lead: it lights whatever it touches instantly at the cue time, with no fuse length, burn time or fuse cost.
   - Draw fuse between lead fuses, exit fuses, junctions and individual rack tubes.
   - Helpers chain cakes in sequence or fan them out from one junction.
   - Boards: add a board, set its width and depth, and it is drawn to scale. Drop or drag items onto a board (or pick it in the inspector) to set them on it; they move with the board.

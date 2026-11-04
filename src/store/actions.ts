@@ -422,6 +422,9 @@ function pushSegment(
   lengthIn?: number,
 ) {
   if (from === to) return;
+  // Igniter leads light instantly and use no fuse, so they carry no length.
+  const igniterEnd = [from, to].some((k) => s.fuseNodes.some((n) => n.kind === 'igniter' && k === `n:${n.id}`));
+  if (igniterEnd) lengthIn = 0;
   const dup = s.fuseSegments.some(
     (x) => (x.from === from && x.to === to) || (x.from === to && x.to === from),
   );

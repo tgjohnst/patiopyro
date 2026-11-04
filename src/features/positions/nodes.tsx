@@ -243,7 +243,8 @@ export const BoardNode = memo(function BoardNode({ data, selected, width, height
 
 export const nodeTypes = { item: ItemNode, rack: RackNode, igniter: IgniterNode, junction: JunctionNode, board: BoardNode };
 
-export type FuseEdgeData = { color: string; label: string };
+/** `lead`: an igniter's e-match/Talon lead, which lights instantly instead of burning like fuse. */
+export type FuseEdgeData = { color: string; label: string; lead?: boolean };
 
 export function FuseEdge({
   id,
@@ -260,7 +261,17 @@ export function FuseEdge({
   const color = data?.color ?? '#64748b';
   return (
     <>
-      <BaseEdge id={id} path={path} style={{ stroke: color, strokeWidth: selected ? 5 : 3, opacity: selected ? 1 : 0.85 }} />
+      <BaseEdge
+        id={id}
+        path={path}
+        style={{
+          stroke: color,
+          strokeWidth: data?.lead ? (selected ? 3.5 : 2) : selected ? 5 : 3,
+          strokeDasharray: data?.lead ? '2 5' : undefined,
+          strokeLinecap: 'round',
+          opacity: selected ? 1 : 0.85,
+        }}
+      />
       <EdgeLabelRenderer>
         <div
           className={clsx(
@@ -269,6 +280,7 @@ export function FuseEdge({
           )}
           style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`, borderLeft: `3px solid ${color}` }}
         >
+          {data?.lead && '⚡ '}
           {data?.label}
         </div>
       </EdgeLabelRenderer>

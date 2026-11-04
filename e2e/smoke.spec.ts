@@ -18,6 +18,15 @@ test('demo show: layout, fuse, timeline, reports and exports', async ({ page }) 
   await expect(page.getByRole('row', { name: /Triple Threat Compound/ })).toContainText('Compound ×3');
   await expect(page.getByTestId('sub-row-Triple Threat Compound-1')).toContainText('Ghost fans');
   await expect(page.getByRole('row', { name: /^Night Owl/ })).toContainText('$1.80'); // $45 / 25 shots
+  const owlRow = page.getByRole('row', { name: /^Night Owl/ });
+  await expect(owlRow.getByTestId('cake-tags')).toHaveText('Big breaks');
+  await expect(owlRow.getByTestId('cake-effects')).toHaveText('CrackleGolden');
+  const [invXlsx] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: '⬇ Export .xlsx' }).click()]);
+  expect(invXlsx.suggestedFilename()).toBe('Backyard-Fourth-demo-inventory.xlsx');
+  const [invCsv] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: '⬇ .csv' }).click()]);
+  const invText = (await readFile((await invCsv.path())!)).toString();
+  expect(invText).toContain('\n\nAssortments\n');
+  expect(invText).toMatch(/^Night Owl,Demo Fireworks Co\.,1\.4G,500g,Big breaks,"Crackle, Golden",/m);
   await shot(page, '1-inventory');
 
   await page.getByRole('button', { name: 'Site Map', exact: true }).click();
@@ -26,6 +35,11 @@ test('demo show: layout, fuse, timeline, reports and exports', async ({ page }) 
 
   await page.getByRole('button', { name: 'Positions', exact: true }).click();
   await expect(page.locator('.react-flow__node').first()).toBeVisible();
+  // Runs from an igniter are its e-match lead: instant, with no fuse length or burn time
+  await expect(page.locator('.react-flow__edgelabel-renderer').getByText('⚡ E-match lead · instant').first()).toBeVisible();
+  await page.locator('.react-flow__edgelabel-renderer').getByText('⚡ E-match lead · instant').first().click();
+  await expect(page.getByTestId('igniter-lead')).toContainText('fires instantly at the cue time');
+  await expect(page.getByTestId('igniter-lead').getByLabel('Length')).toHaveCount(0);
   await shot(page, '3-positions');
 
   // Drag a cake from the inventory onto the canvas
@@ -98,7 +112,9 @@ test('demo show: layout, fuse, timeline, reports and exports', async ({ page }) 
   await expect(page.getByText('Fuse chains, in cue order').first()).toBeVisible();
   // One fuse diagram per rack: the shell rack on Left and the rocket rack in Center.
   await expect(page.getByTestId('rack-fuse-diagram')).toHaveCount(2);
-  await expect(page.getByText('fire enters the rack here').first()).toBeVisible();
+  // Rack tubes lit straight from an igniter say so, rather than listing a fuse run
+  await expect(page.getByText('attached directly; it lights the tube instantly').first()).toBeVisible();
+  await expect(page.getByText(/Attach the e-match to Night Owl lead fuse; it lights instantly/).first()).toBeVisible();
   await expect(page.getByTestId('position-layout')).toHaveCount(3);
   await expect(page.getByText('Cake board: 3 ft wide × 12 in deep · holds Night Owl, Crackling Willow')).toBeVisible();
   await shot(page, '9-worksheet');

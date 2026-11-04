@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CAKE_CATEGORIES, CAKE_WEIGHT_CLASSES, LEGACY_DEFAULT_WORKSHEET_SUPPLIES } from './constants';
+import { CAKE_EFFECTS, CAKE_TAGS, CAKE_WEIGHT_CLASSES, LEGACY_DEFAULT_WORKSHEET_SUPPLIES } from './constants';
 
 export const SCHEMA_VERSION = 1;
 
@@ -24,7 +24,8 @@ export const subCakeSchema = z.object({
   offsetSec: nonNeg,
   durationSec: nonNeg,
   effectNotes: z.string().default(''),
-  categories: z.array(z.enum(CAKE_CATEGORIES)).default([]),
+  tags: z.array(z.enum(CAKE_TAGS)).default([]),
+  effects: z.array(z.enum(CAKE_EFFECTS)).default([]),
 });
 
 export const cakeSchema = z.object({
@@ -43,7 +44,8 @@ export const cakeSchema = z.object({
   hasExitFuse: z.boolean(),
   /** Net explosive weight class; null when unclassified. */
   weightClass: z.enum(CAKE_WEIGHT_CLASSES).nullable().default(null),
-  categories: z.array(z.enum(CAKE_CATEGORIES)).default([]),
+  tags: z.array(z.enum(CAKE_TAGS)).default([]),
+  effects: z.array(z.enum(CAKE_EFFECTS)).default([]),
   /** Non-empty for compound cakes: the fused sections, each broken out. */
   subCakes: z.array(subCakeSchema).default([]),
   /** Assortment this cake came in; its cost then comes from the assortment (see itemUnitCost). */
@@ -334,7 +336,7 @@ export function parseShow(raw: unknown): Show {
     );
   }
   // Future migrations: if (obj.schemaVersion === 1) raw = migrate1to2(raw) ...
-  const result = showSchema.safeParse(migrateWorksheetSupplies(raw));
+  const result = showSchema.safeParse(migrateCakeCategories(migrateWorksheetSupplies(raw)));
   if (!result.success) {
     const issue = result.error.issues[0];
     throw new Error(`Invalid show file at ${issue.path.join('.')}: ${issue.message}`);
@@ -361,4 +363,34 @@ function migrateWorksheetSupplies(raw: unknown): unknown {
       ? []
       : kept.map((name, i) => ({ id: `supply_legacy_${i + 1}`, name, qtyNeeded: 1, qtyOwned: 0, unitCost: 0 }));
   return { ...show, settings, supplies: Array.isArray(show.supplies) ? show.supplies : migrated };
+}
+
+const TAG_SET = new Set<string>(CAKE_TAGS);
+const EFFECT_SET = new Set<string>(CAKE_EFFECTS);
+
+/**
+ * Older files kept one `categories` list per cake and sub cake. Split it into tags and effects;
+ * names that are neither (the old "Colors") are dropped.
+ */
+function migrateCakeCategories(raw: unknown): unknown {
+  const show = raw as { catalog?: unknown };
+  if (!Array.isArray(show.catalog)) return raw;
+  const split = (o: Record<string, unknown>) => {
+    if (!Array.isArray(o.categories)) return o;
+    const { categories, ...rest } = o as { categories: unknown[] } & Record<string, unknown>;
+    const names = categories.map(String);
+    return {
+      ...rest,
+      tags: rest.tags ?? names.filter((n) => TAG_SET.has(n)),
+      effects: rest.effects ?? names.filter((n) => EFFECT_SET.has(n)),
+    };
+  };
+  const catalog = show.catalog.map((item: Record<string, unknown>) => {
+    if (item?.kind !== 'cake') return item;
+    const cake = split(item);
+    return Array.isArray(cake.subCakes)
+      ? { ...cake, subCakes: cake.subCakes.map((sub: Record<string, unknown>) => split(sub)) }
+      : cake;
+  });
+  return { ...show, catalog };
 }

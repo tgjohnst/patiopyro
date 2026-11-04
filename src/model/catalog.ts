@@ -1,10 +1,11 @@
-import type { CAKE_CATEGORIES } from './constants';
+import type { CAKE_EFFECTS, CAKE_TAGS } from './constants';
 import type { Assortment, Cake, CatalogItem, ShellPricing, Show, SubCake } from './schema';
 
-export type CakeCategory = (typeof CAKE_CATEGORIES)[number];
+export type CakeTag = (typeof CAKE_TAGS)[number];
+export type CakeEffect = (typeof CAKE_EFFECTS)[number];
 
-/** Label colors per cake category. Literal class names so Tailwind picks them up. */
-export const CATEGORY_CLASS: Record<CakeCategory, string> = {
+/** Label colors per cake tag. Literal class names so Tailwind picks them up. */
+export const TAG_CLASS: Record<CakeTag, string> = {
   'Big breaks': 'bg-red-500/20 text-red-300 ring-red-500/40',
   Small: 'bg-teal-500/20 text-teal-300 ring-teal-500/40',
   Medium: 'bg-cyan-500/20 text-cyan-300 ring-cyan-500/40',
@@ -14,17 +15,37 @@ export const CATEGORY_CLASS: Record<CakeCategory, string> = {
   NOAB: 'bg-orange-500/20 text-orange-300 ring-orange-500/40',
   Fan: 'bg-lime-500/20 text-lime-300 ring-lime-500/40',
   Barrage: 'bg-rose-500/20 text-rose-300 ring-rose-500/40',
+  Transition: 'bg-purple-500/20 text-purple-300 ring-purple-500/40',
+  Fast: 'bg-red-700/30 text-orange-200 ring-red-600/50',
+  Slow: 'bg-blue-900/40 text-blue-200 ring-blue-700/50',
+};
+
+/** Label colors per cake effect, loosely after what each looks like. */
+export const EFFECT_CLASS: Record<CakeEffect, string> = {
   Crackle: 'bg-amber-500/20 text-amber-200 ring-amber-500/40',
   Strobe: 'bg-slate-200/20 text-slate-100 ring-slate-300/40',
   Willow: 'bg-yellow-700/30 text-yellow-200 ring-yellow-700/50',
   Comets: 'bg-sky-500/20 text-sky-300 ring-sky-500/40',
   Mines: 'bg-emerald-500/20 text-emerald-300 ring-emerald-500/40',
   Ghost: 'bg-violet-500/20 text-violet-200 ring-violet-400/40',
-  Colors: 'bg-pink-500/20 text-pink-300 ring-pink-500/40',
-  Transition: 'bg-purple-500/20 text-purple-300 ring-purple-500/40',
-  Fast: 'bg-red-700/30 text-orange-200 ring-red-600/50',
+  Neon: 'bg-lime-400/20 text-lime-200 ring-lime-400/50',
   Golden: 'bg-amber-300/20 text-amber-100 ring-amber-300/50',
-  Slow: 'bg-blue-900/40 text-blue-200 ring-blue-700/50',
+  Dahlia: 'bg-rose-400/20 text-rose-200 ring-rose-400/40',
+  Peony: 'bg-pink-500/20 text-pink-300 ring-pink-500/40',
+  Chrysanthemum: 'bg-orange-400/20 text-orange-200 ring-orange-400/40',
+  Brocade: 'bg-yellow-600/25 text-yellow-100 ring-yellow-600/50',
+  Palm: 'bg-green-600/25 text-green-200 ring-green-600/50',
+  'Flying fish': 'bg-cyan-400/20 text-cyan-100 ring-cyan-400/40',
+  Ring: 'bg-blue-500/20 text-blue-300 ring-blue-500/40',
+  Crossette: 'bg-teal-400/20 text-teal-100 ring-teal-400/40',
+  Special: 'bg-fuchsia-400/20 text-fuchsia-200 ring-fuchsia-400/40',
+  Tourbillion: 'bg-indigo-400/20 text-indigo-200 ring-indigo-400/40',
+  Pistil: 'bg-purple-400/20 text-purple-200 ring-purple-400/40',
+  Coconut: 'bg-stone-400/20 text-stone-200 ring-stone-400/40',
+  Girandola: 'bg-sky-300/20 text-sky-100 ring-sky-300/40',
+  Horsetail: 'bg-zinc-300/20 text-zinc-100 ring-zinc-300/40',
+  Nishiki: 'bg-amber-600/25 text-amber-100 ring-amber-600/50',
+  Salute: 'bg-neutral-100/20 text-white ring-neutral-200/50',
 };
 
 /** Unit cost for items priced per piece or by the case/pack (shells, rockets, roman candles). */

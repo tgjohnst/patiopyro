@@ -7,7 +7,7 @@ import {
   type FuseableItem,
   type TubeItem,
 } from '../model/catalog';
-import { inKey, nodeKey, outKey, tubeKey } from '../model/endpoints';
+import { igniterLeadIds, inKey, nodeKey, outKey, tubeKey } from '../model/endpoints';
 import type { FuseType, Show } from '../model/schema';
 
 export interface Arrival {
@@ -82,8 +82,10 @@ export function computeTiming(show: Show): TimingResult {
     adj.get(a)!.push({ to: b, w });
   };
 
+  // An igniter lights what its lead touches at the cue time; other runs take their fuse's burn time.
+  const leads = igniterLeadIds(show);
   for (const seg of show.fuseSegments) {
-    const w = segmentDelaySec(seg.lengthIn, fuseById.get(seg.fuseTypeId) ?? defaultFuse);
+    const w = leads.has(seg.id) ? 0 : segmentDelaySec(seg.lengthIn, fuseById.get(seg.fuseTypeId) ?? defaultFuse);
     addEdge(seg.from, seg.to, w);
     addEdge(seg.to, seg.from, w);
   }

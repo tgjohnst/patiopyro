@@ -22,7 +22,7 @@ import { segmentDelaySec } from '../../engine/timing';
 import { displayToInches, formatLengthIn, formatTime, inchesToDisplay, smallUnit } from '../../lib/format';
 import { describeAddress, pinAddress } from '../../model/addressing';
 import { KIND_LABEL, effectDurationSec, isFuseable } from '../../model/catalog';
-import { endpointFromHandle, endpointHandle, parseEndpoint } from '../../model/endpoints';
+import { IGNITER_LEAD_COLOR, endpointFromHandle, endpointHandle, igniterLeadIds, igniterLeadName, parseEndpoint } from '../../model/endpoints';
 import type { Board, Show } from '../../model/schema';
 import {
   addBoard,
@@ -183,6 +183,7 @@ function buildGraph(show: Show, positionId: string) {
   }
 
   const edges: Edge<FuseEdgeData>[] = [];
+  const leads = igniterLeadIds(show);
   for (const s of show.fuseSegments) {
     if (s.positionId !== positionId) continue;
     const a = endpointHandle(s.from);
@@ -197,10 +198,12 @@ function buildGraph(show: Show, positionId: string) {
       sourceHandle: a.handle,
       target: b.nodeId,
       targetHandle: b.handle,
-      data: {
-        color: ft?.color ?? '#64748b',
-        label: `${formatLengthIn(s.lengthIn, show.settings.units)} ${ft?.name.split(' ')[0] ?? ''} · ${segmentDelaySec(s.lengthIn, ft).toFixed(1)}s`,
-      },
+      data: leads.has(s.id)
+        ? { color: IGNITER_LEAD_COLOR, label: `${igniterLeadName(ctrl.igniterKind)} · instant`, lead: true }
+        : {
+            color: ft?.color ?? '#64748b',
+            label: `${formatLengthIn(s.lengthIn, show.settings.units)} ${ft?.name.split(' ')[0] ?? ''} · ${segmentDelaySec(s.lengthIn, ft).toFixed(1)}s`,
+          },
     });
   }
   return { nodes, edges };
@@ -592,7 +595,23 @@ function Inspector({
         </div>
       )}
 
-      {seg && (
+      {seg && igniterLeadIds(show).has(seg.id) && (
+        <div className="flex flex-col gap-2" data-testid="igniter-lead">
+          <p className="font-medium text-slate-100">{igniterLeadName(show.firing.controller.igniterKind)}</p>
+          <p className="text-xs text-slate-400">
+            {name(seg.from)} ↔ {name(seg.to)}
+          </p>
+          <p className="text-xs text-slate-400">
+            The igniter is attached straight to what it lights, so it fires instantly at the cue time. No fuse is used or
+            timed here.
+          </p>
+          <Button variant="danger" size="sm" onClick={() => deleteElements([], [], [seg.id])}>
+            Disconnect
+          </Button>
+        </div>
+      )}
+
+      {seg && !igniterLeadIds(show).has(seg.id) && (
         <div className="flex flex-col gap-2">
           <p className="font-medium text-slate-100">Fuse run</p>
           <p className="text-xs text-slate-400">
