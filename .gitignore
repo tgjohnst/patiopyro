@@ -4,3 +4,7 @@ dist
 test-results
 playwright-report
 .DS_Store
+
+# /brag launch-video outputs
+brag-output/
+brag-output-*/
