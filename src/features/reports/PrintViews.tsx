@@ -1,6 +1,7 @@
 import { Fragment, useEffect } from 'react';
 import { buildPositionSheets, type RackSheet } from '../../engine/chains';
 import { buildCueList } from '../../engine/cues';
+import { positionLayout, type PositionLayout } from '../../engine/layout';
 import { formatLengthIn, formatTime } from '../../lib/format';
 import type { CatalogItem, PlacedItem, Show } from '../../model/schema';
 import { useDerived, useShow } from '../../store/showStore';
@@ -101,14 +102,19 @@ export function Worksheet() {
                 <td className="py-0.5">{box}Firing modules</td>
                 <td className="text-right">{show.firing.modules.length}</td>
               </tr>
-              {show.settings.worksheetSupplies
-                .map((line) => line.trim())
-                .filter(Boolean)
-                .map((line, i) => (
-                  <tr key={i} className="border-b border-gray-300">
-                    <td className="py-0.5" colSpan={2}>
+              {show.supplies
+                .filter((sup) => sup.qtyNeeded > 0)
+                .map((sup) => (
+                  <tr key={sup.id} className="border-b border-gray-300">
+                    <td className="py-0.5">
                       {box}
-                      {line}
+                      {sup.name}
+                    </td>
+                    <td className="text-right">
+                      {sup.qtyNeeded}
+                      {sup.qtyOwned < sup.qtyNeeded && (
+                        <span className="text-gray-500"> (buy {sup.qtyNeeded - sup.qtyOwned})</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -179,13 +185,43 @@ export function Worksheet() {
             </span>
           </h2>
 
-          <h3 className="mt-2 font-bold">1. Place items</h3>
+          <h3 className="mt-2 font-bold">Layout</h3>
+          <LayoutDiagram layout={positionLayout(show, sh.position.id, d.timing)} units={u} />
+
+          {show.boards.some((b) => b.positionId === sh.position.id) && (
+            <>
+              <h3 className="mt-3 font-bold">Boards</h3>
+              <ul className="text-xs">
+                {show.boards
+                  .filter((b) => b.positionId === sh.position.id)
+                  .map((b) => {
+                    const on = sh.items.filter((i) => i.placed.boardId === b.id);
+                    return (
+                      <li key={b.id} className="avoid-break flex py-0.5">
+                        {box}
+                        <span>
+                          <b>{b.name}</b>: {formatLengthIn(b.widthIn, u)} wide × {formatLengthIn(b.depthIn, u)} deep
+                          <span className="text-gray-500">
+                            {on.length ? ` · holds ${on.map((i) => i.label).join(', ')}` : ' · nothing on it yet'}
+                          </span>
+                        </span>
+                      </li>
+                    );
+                  })}
+              </ul>
+            </>
+          )}
+
+          <h3 className="mt-3 font-bold">1. Place items</h3>
           <ul className="columns-2 text-xs">
             {sh.items.map(({ placed, item, label }) => (
               <li key={placed.id} className="avoid-break flex py-0.5">
                 {box}
                 <span>
                   {label} <span className="text-gray-500">({itemBrief(item, placed)})</span>
+                  {placed.boardId && show.boards.some((b) => b.id === placed.boardId) && (
+                    <span className="text-gray-500"> on {show.boards.find((b) => b.id === placed.boardId)!.name}</span>
+                  )}
                   {item.kind === 'cake' && item.subCakes.length > 0 && (
                     <ol className="text-[11px] text-gray-600">
                       {item.subCakes.map((sub, i) => (
@@ -283,6 +319,8 @@ export function Worksheet() {
             'Continuity check passes on every wired cue',
             'Audience is behind the audience line and the fallout area is clear',
             'Water, extinguisher and first-aid kit on hand',
+            'Operators are wearing PPE',
+            'Operator designated for firewatch',
             'Controller armed only when the area is clear',
           ].map((t) => (
             <li key={t} className="flex py-1">
@@ -321,6 +359,93 @@ function itemBrief(item: CatalogItem, placed: PlacedItem) {
     case 'rack':
       return `rack, ${placed.tubes?.filter(Boolean).length ?? 0} tubes loaded`;
   }
+}
+
+/** A position as laid out on its canvas: boards, items, igniters and the fuse between them. */
+function LayoutDiagram({ layout, units }: { layout: PositionLayout; units: Show['settings']['units'] }) {
+  const { boards, boxes, lines, bounds } = layout;
+  if (!bounds) return <p className="text-xs text-gray-500">Nothing placed at this position.</p>;
+  const pad = 20;
+  const vb = [bounds.x - pad, bounds.y - pad, bounds.w + pad * 2, bounds.h + pad * 2];
+  const fuses = [...new Map(lines.map((l) => [l.fuseName, l.color])).entries()];
+  const dash = (name: string) => DASHES[fuses.findIndex(([n]) => n === name) % DASHES.length];
+  return (
+    <div className="avoid-break">
+      <svg viewBox={vb.join(' ')} className="block max-h-[420px] w-full" data-testid="position-layout">
+        {boards.map((b) => (
+          <g key={b.id}>
+            <rect x={b.x} y={b.y} width={b.w} height={b.h} rx={4} fill="#f5efe4" stroke="#78716c" strokeWidth={2} />
+            <text x={b.x + 8} y={b.y + 16} fontSize={13} fontWeight={700} fill="#57534e">
+              {b.name} · {formatLengthIn(b.widthIn, units)} × {formatLengthIn(b.depthIn, units)}
+            </text>
+          </g>
+        ))}
+        {lines.map((l, i) => (
+          <line key={i} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke={l.color} strokeWidth={3} strokeDasharray={dash(l.fuseName)} />
+        ))}
+        {boxes.map((b) => {
+          if (b.kind === 'junction') {
+            return (
+              <g key={b.id}>
+                <rect x={b.x + 3} y={b.y + 3} width={14} height={14} fill="#fff" stroke="#000" strokeWidth={1.5} transform={`rotate(45 ${b.x + 10} ${b.y + 10})`} />
+                <text x={b.x + 10} y={b.y + 32} fontSize={11} textAnchor="middle">
+                  {b.label}
+                </text>
+              </g>
+            );
+          }
+          const igniter = b.kind === 'igniter';
+          return (
+            <g key={b.id}>
+              <rect
+                x={b.x}
+                y={b.y}
+                width={b.w}
+                height={b.h}
+                rx={igniter ? b.h / 2 : 6}
+                fill="#fff"
+                stroke="#000"
+                strokeWidth={igniter ? 1 : 1.5}
+                strokeDasharray={igniter ? '4 2' : undefined}
+              />
+              <text x={b.x + (igniter ? b.w / 2 : 8)} y={b.y + 16} fontSize={igniter ? 12 : 13} fontWeight={700} textAnchor={igniter ? 'middle' : 'start'}>
+                {igniter ? '⚡ ' : ''}
+                {clip(b.label, igniter ? 14 : 24)}
+              </text>
+              <text x={b.x + (igniter ? b.w / 2 : 8)} y={b.y + 31} fontSize={11} fill="#4b5563" textAnchor={igniter ? 'middle' : 'start'}>
+                {clip(b.detail, igniter ? 16 : 30)}
+              </text>
+              {b.rack &&
+                b.rack.loaded.map((loaded, i) => (
+                  <circle
+                    key={i}
+                    cx={b.x + 26 + (i % b.rack!.cols) * 26}
+                    cy={b.y + 47 + Math.floor(i / b.rack!.cols) * 26}
+                    r={9}
+                    fill={loaded ? '#d1d5db' : '#fff'}
+                    stroke="#000"
+                    strokeWidth={1}
+                  />
+                ))}
+            </g>
+          );
+        })}
+      </svg>
+      {fuses.length > 0 && (
+        <div className="mt-0.5 flex flex-wrap gap-x-4 text-[11px] text-gray-700">
+          {fuses.map(([name, color]) => (
+            <span key={name} className="inline-flex items-center gap-1">
+              <svg width={26} height={6} aria-hidden>
+                <line x1={0} y1={3} x2={26} y2={3} stroke={color} strokeWidth={3} strokeDasharray={dash(name)} />
+              </svg>
+              {name}
+            </span>
+          ))}
+          <span>Drawn as laid out on the Positions tab; boards to scale.</span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** Dash patterns so fuse types stay distinguishable on a black-and-white printout. */

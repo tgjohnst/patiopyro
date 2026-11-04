@@ -17,13 +17,15 @@ import {
 } from '@xyflow/react';
 import { Badge, Button, EmptyState, Field, NumberInput, Select, TextInput } from '../../components/ui';
 import { endpointNamer } from '../../engine/chains';
+import { BOARD_PX_PER_IN, boardAt, boardSizePx, placedSizePx } from '../../engine/layout';
 import { segmentDelaySec } from '../../engine/timing';
 import { displayToInches, formatLengthIn, formatTime, inchesToDisplay, smallUnit } from '../../lib/format';
 import { describeAddress, pinAddress } from '../../model/addressing';
 import { KIND_LABEL, effectDurationSec, isFuseable } from '../../model/catalog';
 import { endpointFromHandle, endpointHandle, parseEndpoint } from '../../model/endpoints';
-import type { Show } from '../../model/schema';
+import type { Board, Show } from '../../model/schema';
 import {
+  addBoard,
   addIgniter,
   addJunction,
   addSegment,
@@ -34,6 +36,8 @@ import {
   moveCanvasElements,
   placeItem,
   setCueTime,
+  setPlacedBoard,
+  updateBoard,
   updateIgniter,
   updatePlaced,
   updateSegment,
@@ -41,6 +45,12 @@ import {
 import { derive, getShow, useShow } from '../../store/showStore';
 import { DND_CATALOG, useUi } from '../../store/uiStore';
 import { edgeTypes, nodeTypes, type CanvasNode, type FuseEdgeData, type ItemNodeT } from './nodes';
+
+const boardSizeLabel = (b: Board, u: Show['settings']['units']) =>
+  `${inchesToDisplay(b.widthIn, u)} × ${inchesToDisplay(b.depthIn, u)} ${smallUnit(u)}`;
+
+/** Nodes that are placed items (and so can sit on a board). */
+const isPlacedNode = (n: CanvasNode) => n.type === 'item' || n.type === 'rack';
 import { RackEditor } from './RackEditor';
 
 export function PositionsTab() {
@@ -86,6 +96,25 @@ function buildGraph(show: Show, positionId: string) {
   const ctrl = show.firing.controller;
   const name = endpointNamer(show, positionId);
   const nodes: CanvasNode[] = [];
+
+  // Boards first so they draw underneath everything on them.
+  for (const b of show.boards) {
+    if (b.positionId !== positionId) continue;
+    const { w, h } = boardSizePx(b);
+    nodes.push({
+      id: b.id,
+      type: 'board',
+      position: { x: b.x, y: b.y },
+      width: w,
+      height: h,
+      zIndex: -1,
+      data: {
+        board: b,
+        sizeLabel: boardSizeLabel(b, show.settings.units),
+        itemCount: show.placed.filter((p) => p.boardId === b.id).length,
+      },
+    });
+  }
 
   for (const p of show.placed) {
     if (p.positionId !== positionId) continue;
@@ -183,10 +212,14 @@ function PositionCanvas({ positionId }: { positionId: string }) {
   const graph = useMemo(() => buildGraph(show, positionId), [show, positionId]);
   // Local copy for in-progress drags and selection; re-synced whenever the store graph changes.
   const [local, setLocal] = useState(() => ({ graph, nodes: graph.nodes, edges: graph.edges }));
+  // A node to select once it appears (e.g. a board just added), replacing the current selection.
+  const [selectNext, setSelectNext] = useState<string | null>(null);
   let current = local;
   if (local.graph !== graph) {
-    const selN = new Set(local.nodes.filter((n) => n.selected).map((n) => n.id));
-    const selE = new Set(local.edges.filter((e) => e.selected).map((e) => e.id));
+    const pending = selectNext && graph.nodes.some((n) => n.id === selectNext) ? selectNext : null;
+    if (pending) setSelectNext(null);
+    const selN = new Set(pending ? [pending] : local.nodes.filter((n) => n.selected).map((n) => n.id));
+    const selE = new Set(pending ? [] : local.edges.filter((e) => e.selected).map((e) => e.id));
     current = {
       graph,
       nodes: graph.nodes.map((n) => ({ ...n, selected: selN.has(n.id) }) as CanvasNode),
@@ -198,7 +231,24 @@ function PositionCanvas({ positionId }: { positionId: string }) {
 
   const onNodesChange = useCallback(
     (changes: NodeChange<CanvasNode>[]) =>
-      setLocal((l) => ({ ...l, nodes: applyNodeChanges(changes.filter((c) => c.type !== 'remove'), l.nodes) })),
+      setLocal((l) => {
+        const kept = changes.filter((c) => c.type !== 'remove');
+        // Items on a board ride along while the board is dragged.
+        const moving = new Set(kept.flatMap((c) => (c.type === 'position' ? [c.id] : [])));
+        const carried: NodeChange<CanvasNode>[] = [];
+        for (const c of kept) {
+          if (c.type !== 'position' || !c.position) continue;
+          const board = l.nodes.find((n) => n.id === c.id && n.type === 'board');
+          if (!board) continue;
+          const [dx, dy] = [c.position.x - board.position.x, c.position.y - board.position.y];
+          if (!dx && !dy) continue;
+          for (const n of l.nodes) {
+            if (!isPlacedNode(n) || moving.has(n.id) || n.data.placed.boardId !== board.id) continue;
+            carried.push({ id: n.id, type: 'position', position: { x: n.position.x + dx, y: n.position.y + dy } });
+          }
+        }
+        return { ...l, nodes: applyNodeChanges([...kept, ...carried], l.nodes) };
+      }),
     [],
   );
   const onEdgesChange = useCallback(
@@ -221,12 +271,30 @@ function PositionCanvas({ positionId }: { positionId: string }) {
   const selectedNodes = nodes.filter((n) => n.selected);
   const selectedEdges = edges.filter((e) => e.selected);
 
-  const deleteSelection = () =>
+  const deleteNodes = (dn: CanvasNode[], edgeIds: string[]) =>
     deleteElements(
-      selectedNodes.filter((n) => n.type === 'item' || n.type === 'rack').map((n) => n.id),
-      selectedNodes.filter((n) => n.type === 'igniter' || n.type === 'junction').map((n) => n.id),
-      selectedEdges.map((e) => e.id),
+      dn.filter(isPlacedNode).map((n) => n.id),
+      dn.filter((n) => n.type === 'igniter' || n.type === 'junction').map((n) => n.id),
+      edgeIds,
+      dn.filter((n) => n.type === 'board').map((n) => n.id),
     );
+  const deleteSelection = () => deleteNodes(selectedNodes, selectedEdges.map((e) => e.id));
+
+  /** Persist a drag. An item lands on whichever board is under its centre, or comes off. */
+  const onDragStop = (dragged: CanvasNode[]) => {
+    const boards = getShow().boards;
+    moveCanvasElements(
+      dragged.map((n) => {
+        const x = Math.round(n.position.x);
+        const y = Math.round(n.position.y);
+        if (!isPlacedNode(n)) return { id: n.id, x, y };
+        const est = placedSizePx(n.type === 'rack' ? n.data.rack : n.data.item);
+        const w = n.measured?.width ?? est.w;
+        const h = n.measured?.height ?? est.h;
+        return { id: n.id, x, y, boardId: boardAt(boards, positionId, x + w / 2, y + h / 2)?.id ?? null };
+      }),
+    );
+  };
 
   const onDrop = (e: DragEvent) => {
     const catalogId = e.dataTransfer.getData(DND_CATALOG);
@@ -238,7 +306,7 @@ function PositionCanvas({ positionId }: { positionId: string }) {
       return;
     }
     const p = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-    placeItem(catalogId, positionId, p.x - 80, p.y - 30);
+    placeItem(catalogId, positionId, p.x - 80, p.y - 30, boardAt(getShow().boards, positionId, p.x, p.y)?.id ?? null);
   };
 
   const viewCenter = () => {
@@ -250,7 +318,13 @@ function PositionCanvas({ positionId }: { positionId: string }) {
   return (
     <div className="flex min-h-0 flex-1">
       <div className="relative flex min-w-0 flex-1 flex-col">
-        <Toolbar positionId={positionId} viewCenter={viewCenter} selectedNodes={selectedNodes} onDelete={deleteSelection} />
+        <Toolbar
+          positionId={positionId}
+          viewCenter={viewCenter}
+          selectedNodes={selectedNodes}
+          onDelete={deleteSelection}
+          onBoardAdded={setSelectNext}
+        />
         <div className="min-h-0 flex-1" onDragOver={(e) => e.dataTransfer.types.includes(DND_CATALOG) && e.preventDefault()} onDrop={onDrop} data-testid="position-canvas">
           <ReactFlow
             nodes={nodes}
@@ -262,16 +336,9 @@ function PositionCanvas({ positionId }: { positionId: string }) {
             onConnect={onConnect}
             connectionMode={ConnectionMode.Loose}
             connectionLineStyle={{ stroke: '#f59e0b', strokeWidth: 3 }}
-            onNodeDragStop={(_, __, dragged) =>
-              moveCanvasElements(dragged.map((n) => ({ id: n.id, x: Math.round(n.position.x), y: Math.round(n.position.y) })))
-            }
-            onDelete={({ nodes: dn, edges: de }) =>
-              deleteElements(
-                dn.filter((n) => n.type === 'item' || n.type === 'rack').map((n) => n.id),
-                dn.filter((n) => n.type === 'igniter' || n.type === 'junction').map((n) => n.id),
-                de.map((e) => e.id),
-              )
-            }
+            onNodeDragStop={(_, __, dragged) => onDragStop(dragged)}
+            onDelete={({ nodes: dn, edges: de }) => deleteNodes(dn, de.map((e) => e.id))}
+            elevateNodesOnSelect={false}
             deleteKeyCode={['Backspace', 'Delete']}
             multiSelectionKeyCode={['Shift', 'Meta', 'Control']}
             fitView
@@ -288,7 +355,8 @@ function PositionCanvas({ positionId }: { positionId: string }) {
         </div>
         {nodes.length === 0 && (
           <div className="pointer-events-none absolute inset-x-0 top-1/2 text-center text-sm text-slate-500">
-            Drag cakes, rockets, roman candles and racks here from the inventory. Then add igniters and draw fuse between the handles.
+            Drag cakes, rockets, roman candles and racks here from the inventory. Add boards to set them on, then add igniters and
+            draw fuse between the handles.
           </div>
         )}
       </div>
@@ -307,11 +375,13 @@ function Toolbar({
   viewCenter,
   selectedNodes,
   onDelete,
+  onBoardAdded,
 }: {
   positionId: string;
   viewCenter: () => { x: number; y: number };
   selectedNodes: CanvasNode[];
   onDelete: () => void;
+  onBoardAdded: (id: string) => void;
 }) {
   const modules = useShow((s) => s.firing.modules);
   const fuseTypes = useShow((s) => s.fuseTypes);
@@ -326,7 +396,7 @@ function Toolbar({
   const [runType, setRunType] = useState(settings.defaultFuseTypeId);
   const [runLen, setRunLen] = useState(settings.defaultSegmentLengthIn);
   const u = settings.units;
-  const sel = selectedNodes.filter((n) => n.type === 'item' || n.type === 'rack');
+  const sel = selectedNodes.filter(isPlacedNode);
   const orderedSel = [...sel].sort((a, b) => a.position.x - b.position.x || a.position.y - b.position.y);
 
   return (
@@ -380,6 +450,15 @@ function Toolbar({
         title="A split point so one fuse lights several items"
       >
         ◆ Junction
+      </Button>
+      <Button
+        onClick={() => {
+          const c = viewCenter();
+          onBoardAdded(addBoard(positionId, c.x - 24 * BOARD_PX_PER_IN, c.y + 40));
+        }}
+        title="A board to set items on. Items dragged onto it move with it."
+      >
+        ▭ Board
       </Button>
 
       <div className="flex items-end gap-1 rounded-lg border border-slate-800 p-1.5">
@@ -469,6 +548,7 @@ function Inspector({
             <li>Drag from one handle to another to lay fuse.</li>
             <li>Cake: left handle is the lead fuse, right is the exit fuse. Rockets and roman candles have a lead fuse only.</li>
             <li>Rack: every tube is a handle. Open the rack to load shells and fuse tubes in series.</li>
+            <li>Board: drop or drag items onto a board to set them on it. They move with the board.</li>
             <li>Shift-click or drag a box to select several, then use Chain or Fan out.</li>
             <li>Press Delete to remove the selection.</li>
           </ul>
@@ -479,7 +559,7 @@ function Inspector({
         </div>
       )}
 
-      {single?.type === 'item' && <ItemInspector node={single} />}
+      {single?.type === 'item' && <ItemInspector node={single} positionId={positionId} />}
 
       {single?.type === 'rack' && (
         <div className="flex flex-col gap-2">
@@ -487,6 +567,7 @@ function Inspector({
           <Field label="Label">
             <TextInput value={single.data.placed.label} onChange={(label) => updatePlaced(single.id, { label })} />
           </Field>
+          <BoardSelect placedId={single.id} boardId={single.data.placed.boardId ?? null} positionId={positionId} />
           <p className="text-xs text-slate-400">
             {single.data.shellNames.filter(Boolean).length} of {single.data.shellNames.length} tubes loaded,{' '}
             {single.data.tubeTimes.filter((t) => t !== null).length} timed.
@@ -496,6 +577,8 @@ function Inspector({
           </Button>
         </div>
       )}
+
+      {single?.type === 'board' && <BoardInspector boardId={single.id} />}
 
       {single?.type === 'igniter' && <IgniterInspector nodeId={single.id} positionId={positionId} />}
 
@@ -542,7 +625,85 @@ function Inspector({
   );
 }
 
-function ItemInspector({ node }: { node: ItemNodeT }) {
+/** Which board a placed item sits on. Picking a board moves the item onto it if it is outside. */
+function BoardSelect({ placedId, boardId, positionId }: { placedId: string; boardId: string | null; positionId: string }) {
+  const allBoards = useShow((s) => s.boards);
+  const boards = allBoards.filter((b) => b.positionId === positionId);
+  if (boards.length === 0) return null;
+  const onChange = (id: string) => {
+    const s = getShow();
+    const board = boards.find((b) => b.id === id);
+    const placed = s.placed.find((p) => p.id === placedId);
+    if (!board || !placed) return setPlacedBoard(placedId, null);
+    const { w, h } = placedSizePx(s.catalog.find((c) => c.id === placed.catalogId));
+    const inside = boardAt([board], positionId, placed.x + w / 2, placed.y + h / 2);
+    // Step new arrivals down and across so they don't stack exactly on top of each other.
+    const step = (s.placed.filter((p) => p.boardId === board.id).length % 4) * 20;
+    setPlacedBoard(placedId, board.id, inside ? undefined : { x: board.x + 16 + step, y: board.y + 30 + step });
+  };
+  return (
+    <Field label="Board">
+      <Select
+        value={boardId && boards.some((b) => b.id === boardId) ? boardId : ''}
+        onChange={onChange}
+        options={[{ value: '', label: 'Not on a board' }, ...boards.map((b) => ({ value: b.id, label: b.name }))]}
+      />
+    </Field>
+  );
+}
+
+function BoardInspector({ boardId }: { boardId: string }) {
+  const board = useShow((s) => s.boards.find((b) => b.id === boardId));
+  const show = useShow((s) => s);
+  const u = show.settings.units;
+  if (!board) return null;
+  const name = endpointNamer(show, board.positionId);
+  const items = show.placed.filter((p) => p.boardId === board.id);
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="font-medium text-slate-100">Board</p>
+      <Field label="Name">
+        <TextInput value={board.name} onChange={(n) => updateBoard(board.id, { name: n })} />
+      </Field>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Width" hint="Left to right">
+          <NumberInput
+            min={1}
+            suffix={smallUnit(u)}
+            value={inchesToDisplay(board.widthIn, u)}
+            onChange={(v) => v > 0 && updateBoard(board.id, { widthIn: displayToInches(v, u) })}
+          />
+        </Field>
+        <Field label="Depth" hint="Front to back">
+          <NumberInput
+            min={1}
+            suffix={smallUnit(u)}
+            value={inchesToDisplay(board.depthIn, u)}
+            onChange={(v) => v > 0 && updateBoard(board.id, { depthIn: displayToInches(v, u) })}
+          />
+        </Field>
+      </div>
+      <div className="text-xs">
+        <div className="mb-1 font-medium text-slate-300">On this board ({items.length})</div>
+        {items.length === 0 ? (
+          <p className="text-slate-500">Drag items onto the board, or pick it in an item's Board setting.</p>
+        ) : (
+          <ul className="list-disc pl-4 text-slate-400">
+            {items.map((p) => (
+              <li key={p.id}>{name(`in:${p.id}`).replace(/ lead fuse$/, '')}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <Button variant="danger" size="sm" onClick={() => deleteElements([], [], [], [board.id])}>
+        Delete board
+      </Button>
+      <p className="text-[11px] text-slate-500">Deleting a board keeps the items that were on it.</p>
+    </div>
+  );
+}
+
+function ItemInspector({ node, positionId }: { node: ItemNodeT; positionId: string }) {
   const { item, placed, timing, cueLabel } = node.data;
   const notes = item.kind === 'cake' ? item.effectNotes : item.effect;
   return (
@@ -551,6 +712,7 @@ function ItemInspector({ node }: { node: ItemNodeT }) {
       <Field label="Label (e.g. “left of rack”)">
         <TextInput value={placed.label} onChange={(label) => updatePlaced(node.id, { label })} />
       </Field>
+      <BoardSelect placedId={node.id} boardId={placed.boardId ?? null} positionId={positionId} />
       <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
         <dt className="text-slate-500">Type</dt>
         <dd>{item.kind === 'cake' && item.subCakes.length ? 'Compound cake' : KIND_LABEL[item.kind]}</dd>

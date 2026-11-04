@@ -24,6 +24,7 @@ There is no server. Your show autosaves in the browser, and you can save or open
   - Shells: effect, size, light-to-burst time, per-shell or bulk-case pricing.
   - Racks: rows × tubes, tube size and spacing.
   - Used vs. owned counts and notes for every item.
+  - Supplies: fuse tape, stakes, PPE and anything else the show needs, with quantity needed, quantity owned and cost. Supplies with a quantity needed go on the setup worksheet's shopping list and into the show cost. A new show starts with none; "Add common supplies" fills in a starter list.
 - **Fuse library:** green visco, fast visco, time fuse, black match and quickmatch, with editable burn rates and roll pricing (20 ft rolls by default). Pick the default type, set any run's type individually, or apply one type to a whole position.
 - **Site map:** a top-down, to-scale yard.
   - Drag positions and the audience line.
@@ -35,6 +36,7 @@ There is no server. Your show autosaves in the browser, and you can save or open
   - Add igniters (e-match or Talon) on module cues.
   - Draw fuse between lead fuses, exit fuses, junctions and individual rack tubes.
   - Helpers chain cakes in sequence or fan them out from one junction.
+  - Boards: add a board, set its width and depth, and it is drawn to scale. Drop or drag items onto a board (or pick it in the inspector) to set them on it; they move with the board.
 - **Rack editor:** open a rack to load shells, rockets or roman candles tube by tube (click or drag). Rockets and roman candles can also be placed on the canvas by themselves. Lay fuse by clicking tubes in order, or series-fuse a whole rack in one click.
 - **Firing systems:** presets for a generic receiver system, COBRA 18R2 (channels and banks), IGNITE (per-module cues, 6-module limit), Bilusocn and P1200-style kits. Add modules, assign them to positions, and link module cues to the same controller cue so they fire together. Set cues per district for remotes that switch between districts (channel systems use channels).
 - **Timing engine:** computes every effect's ignition and burst time from the cue time, fuse burn time, cake lead and exit fuses, and junction splits (earliest arrival wins).
@@ -48,8 +50,8 @@ There is no server. Your show autosaves in the browser, and you can save or open
   - Checks: over-allocated inventory, unconnected items, too many igniters per cue, cues out of range, and positions too close to the audience.
   - Show cost, plus inventory value.
 - **Exports:**
-  - **Setup worksheet** (print / save as PDF): shopping list with a supplies checklist (fuse tape, fuse cutter, cling film, PPE and stabilization supplies by default; edit it in Settings), module map, and per-position placement checklists, sub cake breakdowns, a loading and fuse diagram for each rack (fuse type, fire direction and where fuse joins the rack) and step-by-step fuse chains.
-  - **Cost spreadsheet** (`.xlsx` with cost, inventory, fuse and cue sheets, or `.csv`), including cost per shot and per second.
+  - **Setup worksheet** (print / save as PDF): shopping list with fuse, igniters and the supplies from the inventory (with how many to buy), module map, and for each position a layout diagram drawn from the position canvas (boards to scale, items, igniters and fuse), a board list with what sits on each, placement checklists, sub cake breakdowns, a loading and fuse diagram for each rack (fuse type, fire direction and where fuse joins the rack) and step-by-step fuse chains.
+  - **Cost spreadsheet** (`.xlsx` with cost, inventory, fuse and cue sheets, or `.csv`), including each firework's duration (burst time for shells and rockets), cost per shot and per second, and supplies.
   - **Show plan** (print / save as PDF): a large-type cue sheet with times, gaps and district switches.
   - **Show mode:** a full-screen countdown to the next cue for running the show. Shows what is going off at each position right now (including the active sub cake), jumps to the next cue (N), and shows each cue's district with a callout when it's time to switch.
 
@@ -153,7 +155,7 @@ Before committing, run `npm run lint && npm test && npm run build && npm run e2e
 ```
 src/
   model/      Zod schema (show file format), presets, cue addressing, demo show
-  engine/     Pure functions: timing, totals, cost, validation, cue list, worksheet chains
+  engine/     Pure functions: timing, totals, cost, validation, cue list, worksheet chains, position layout
   store/      Zustand store (autosave + undo/redo) and all show mutations
   features/   inventory, site map, positions (React Flow + rack editor), firing system,
               timeline, reports (print views, exports, show mode), settings

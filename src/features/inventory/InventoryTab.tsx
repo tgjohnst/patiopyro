@@ -16,14 +16,18 @@ import {
   type TubeItem,
 } from '../../model/catalog';
 import { uid } from '../../model/defaults';
-import type { Assortment, Cake, CatalogItem, FuseType } from '../../model/schema';
+import { LEGACY_DEFAULT_WORKSHEET_SUPPLIES } from '../../model/constants';
+import type { Assortment, Cake, CatalogItem, FuseType, Supply } from '../../model/schema';
 import {
+  addSupplies,
   deleteAssortment,
   deleteCatalogItem,
   deleteFuseType,
+  deleteSupply,
   updateSettings,
   upsertCatalogItem,
   upsertFuseType,
+  upsertSupply,
 } from '../../store/actions';
 import { useDerived, useShow } from '../../store/showStore';
 import { formatMoney, formatTime } from '../../lib/format';
@@ -415,6 +419,8 @@ export function InventoryTab() {
         )}
       </Panel>
 
+      <Supplies />
+
       <FuseLibrary />
 
       {editing && <ItemDialog initial={editing} onClose={() => setEditing(null)} />}
@@ -422,6 +428,88 @@ export function InventoryTab() {
         <AssortmentDialog initial={editingAssortment} onClose={() => setEditingAssortment(null)} />
       )}
     </div>
+  );
+}
+
+const newSupply = (name = ''): Supply => ({
+  id: uid('supply'),
+  name,
+  qtyNeeded: 1,
+  qtyOwned: 0,
+  unitCost: 0,
+  notes: '',
+  url: '',
+});
+
+/** Setup supplies: printed on the worksheet's shopping list and costed with the show. */
+function Supplies() {
+  const supplies = useShow((s) => s.supplies);
+  const set = (sup: Supply, patch: Partial<Supply>) => upsertSupply({ ...sup, ...patch });
+  const total = supplies.reduce((n, x) => n + x.unitCost * x.qtyNeeded, 0);
+
+  return (
+    <Panel
+      title={`Supplies (${supplies.length})`}
+      actions={
+        <Button size="sm" onClick={() => upsertSupply(newSupply('New supply'))}>
+          + Supply
+        </Button>
+      }
+    >
+      <p className="mb-3 text-xs text-slate-500">
+        Everything else the show needs: fuse tape, stakes, boards, PPE and so on. Supplies with a quantity needed go on
+        the setup worksheet&apos;s shopping list and into the show cost.
+      </p>
+      {supplies.length === 0 ? (
+        <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+          No supplies yet.
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => addSupplies(LEGACY_DEFAULT_WORKSHEET_SUPPLIES.map((name) => newSupply(name)))}
+            title={LEGACY_DEFAULT_WORKSHEET_SUPPLIES.join('\n')}
+          >
+            Add common supplies
+          </Button>
+        </div>
+      ) : (
+        <Table head={['Name', 'Needed', 'Owned', 'To buy', 'Cost (each)', 'Cost for show', 'Notes', '']}>
+          {supplies.map((sup) => (
+            <tr key={sup.id} data-testid={`supply-${sup.name}`}>
+              <td className="px-2 py-1">
+                <TextInput aria-label="Supply name" value={sup.name} onChange={(name) => set(sup, { name })} className="min-w-56" />
+              </td>
+              <td className="w-24 px-2 py-1">
+                <NumberInput aria-label="Needed" integer min={0} value={sup.qtyNeeded} onChange={(qtyNeeded) => set(sup, { qtyNeeded })} />
+              </td>
+              <td className="w-24 px-2 py-1">
+                <NumberInput aria-label="Owned" integer min={0} value={sup.qtyOwned} onChange={(qtyOwned) => set(sup, { qtyOwned })} />
+              </td>
+              <td className={td}>{Math.max(0, sup.qtyNeeded - sup.qtyOwned) || '—'}</td>
+              <td className="w-28 px-2 py-1">
+                <NumberInput aria-label="Cost each" min={0} suffix="$" value={sup.unitCost} onChange={(unitCost) => set(sup, { unitCost })} />
+              </td>
+              <td className={td}>{formatMoney(sup.unitCost * sup.qtyNeeded)}</td>
+              <td className="px-2 py-1">
+                <TextInput aria-label="Notes" value={sup.notes} onChange={(notes) => set(sup, { notes })} className="min-w-48" />
+              </td>
+              <td className="px-2 py-1">
+                <Button size="sm" variant="ghost" className="text-rose-300" onClick={() => deleteSupply(sup.id)}>
+                  Delete
+                </Button>
+              </td>
+            </tr>
+          ))}
+          <tr className="text-slate-400">
+            <td colSpan={5} className="px-2 py-1.5 text-right">
+              Supplies for the show
+            </td>
+            <td className={clsx(td, 'font-medium text-slate-200')}>{formatMoney(total)}</td>
+            <td colSpan={2} />
+          </tr>
+        </Table>
+      )}
+    </Panel>
   );
 }
 

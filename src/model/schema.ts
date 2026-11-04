@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CAKE_CATEGORIES, CAKE_WEIGHT_CLASSES, DEFAULT_WORKSHEET_SUPPLIES } from './constants';
+import { CAKE_CATEGORIES, CAKE_WEIGHT_CLASSES, LEGACY_DEFAULT_WORKSHEET_SUPPLIES } from './constants';
 
 export const SCHEMA_VERSION = 1;
 
@@ -127,6 +127,18 @@ export const catalogItemSchema = z.discriminatedUnion('kind', [
   rackSchema,
 ]);
 
+/** Setup supplies (fuse tape, stakes, PPE…), listed on the worksheet and costed with the show. */
+export const supplySchema = z.object({
+  id,
+  name: z.string(),
+  /** How many this show needs. */
+  qtyNeeded: z.number().int().min(0),
+  qtyOwned: z.number().int().min(0),
+  unitCost: nonNeg,
+  notes: z.string().default(''),
+  url: z.string().default(''),
+});
+
 export const fuseTypeSchema = z.object({
   id,
   name: z.string(),
@@ -163,8 +175,24 @@ export const placedItemSchema = z.object({
   x: z.number(),
   y: z.number(),
   label: z.string().default(''),
+  /** Board this item sits on at its position, if any. */
+  boardId: z.string().nullable().optional(),
   /** Racks only: shell, rocket or roman candle catalog id loaded in each tube (row-major order). */
   tubes: z.array(z.string().nullable()).optional(),
+});
+
+/** A board at a position that items are set and secured on. Drawn to scale on the position canvas. */
+export const boardSchema = z.object({
+  id,
+  positionId: id,
+  name: z.string(),
+  /** Left to right as drawn. */
+  widthIn: z.number().positive(),
+  /** Front to back as drawn. */
+  depthIn: z.number().positive(),
+  /** Position canvas coordinates (px) of the top-left corner. */
+  x: z.number(),
+  y: z.number(),
 });
 
 export const fuseNodeSchema = z.discriminatedUnion('kind', [
@@ -244,8 +272,6 @@ export const settingsSchema = z.object({
   igniterUnitCost: nonNeg,
   includeRacksInCost: z.boolean(),
   snapSec: z.number().positive(),
-  /** Extra checklist lines printed under shopping & prep on the setup worksheet. */
-  worksheetSupplies: z.array(z.string()).default(() => [...DEFAULT_WORKSHEET_SUPPLIES]),
 });
 
 export const showSchema = z.object({
@@ -259,10 +285,12 @@ export const showSchema = z.object({
   settings: settingsSchema,
   catalog: z.array(catalogItemSchema),
   assortments: z.array(assortmentSchema).default([]),
+  supplies: z.array(supplySchema).default([]),
   fuseTypes: z.array(fuseTypeSchema),
   siteMap: siteMapSchema,
   positions: z.array(positionSchema).max(5),
   placed: z.array(placedItemSchema),
+  boards: z.array(boardSchema).default([]),
   fuseNodes: z.array(fuseNodeSchema),
   fuseSegments: z.array(fuseSegmentSchema),
   firing: z.object({ controller: controllerSchema, modules: z.array(moduleSchema) }),
@@ -280,6 +308,8 @@ export type Shell = z.infer<typeof shellSchema>;
 export type Rack = z.infer<typeof rackSchema>;
 export type CatalogItem = z.infer<typeof catalogItemSchema>;
 export type ShellPricing = z.infer<typeof shellPricingSchema>;
+export type Supply = z.infer<typeof supplySchema>;
+export type Board = z.infer<typeof boardSchema>;
 export type FuseType = z.infer<typeof fuseTypeSchema>;
 export type Position = z.infer<typeof positionSchema>;
 export type SiteMap = z.infer<typeof siteMapSchema>;
@@ -304,10 +334,31 @@ export function parseShow(raw: unknown): Show {
     );
   }
   // Future migrations: if (obj.schemaVersion === 1) raw = migrate1to2(raw) ...
-  const result = showSchema.safeParse(raw);
+  const result = showSchema.safeParse(migrateWorksheetSupplies(raw));
   if (!result.success) {
     const issue = result.error.issues[0];
     throw new Error(`Invalid show file at ${issue.path.join('.')}: ${issue.message}`);
   }
   return result.data;
+}
+
+/**
+ * Older files kept a free-text supplies checklist in settings. Lines the user changed
+ * from the old built-in list become supply items; the untouched built-in list is dropped.
+ */
+function migrateWorksheetSupplies(raw: unknown): unknown {
+  const show = raw as { settings?: { worksheetSupplies?: unknown }; supplies?: unknown };
+  const lines = show.settings?.worksheetSupplies;
+  if (!Array.isArray(lines)) return raw;
+  const settings: Record<string, unknown> = { ...show.settings };
+  delete settings.worksheetSupplies;
+  const kept = lines.map((l) => String(l).trim()).filter(Boolean);
+  const isDefault =
+    kept.length === LEGACY_DEFAULT_WORKSHEET_SUPPLIES.length &&
+    kept.every((l, i) => l === LEGACY_DEFAULT_WORKSHEET_SUPPLIES[i]);
+  const migrated =
+    isDefault || Array.isArray(show.supplies)
+      ? []
+      : kept.map((name, i) => ({ id: `supply_legacy_${i + 1}`, name, qtyNeeded: 1, qtyOwned: 0, unitCost: 0 }));
+  return { ...show, settings, supplies: Array.isArray(show.supplies) ? show.supplies : migrated };
 }

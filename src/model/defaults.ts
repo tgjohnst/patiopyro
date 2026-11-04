@@ -1,5 +1,4 @@
 import { nanoid } from 'nanoid';
-import { DEFAULT_WORKSHEET_SUPPLIES } from './constants';
 import {
   DEFAULT_FUSE_TYPES,
   FIRING_SYSTEM_PRESETS,
@@ -38,10 +37,10 @@ export function createEmptyShow(): Show {
       igniterUnitCost: 1.25,
       includeRacksInCost: false,
       snapSec: 0.5,
-      worksheetSupplies: [...DEFAULT_WORKSHEET_SUPPLIES],
     },
     catalog: [],
     assortments: [],
+    supplies: [],
     fuseTypes: structuredClone(DEFAULT_FUSE_TYPES),
     siteMap: {
       widthFt: 100,
@@ -52,6 +51,7 @@ export function createEmptyShow(): Show {
     },
     positions: [newPosition(0)],
     placed: [],
+    boards: [],
     fuseNodes: [],
     fuseSegments: [],
     firing: { controller: controllerFromPreset(FIRING_SYSTEM_PRESETS[0]), modules: [] },

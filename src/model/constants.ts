@@ -23,7 +23,8 @@ export const CAKE_CATEGORIES = [
   'Slow',
 ] as const;
 
-export const DEFAULT_WORKSHEET_SUPPLIES = [
+/** The supplies checklist older show files started with (see migrateWorksheetSupplies). */
+export const LEGACY_DEFAULT_WORKSHEET_SUPPLIES = [
   'Fuse tape',
   'Fuse cutter',
   'Cling film (weatherproof fuse and tube tops)',

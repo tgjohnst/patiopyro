@@ -88,6 +88,23 @@ test('build a show from scratch, undo, autosave and print', async ({ page }) => 
   await page.getByRole('button', { name: /Undo/ }).click();
   await expect(page.getByRole('cell', { name: /^Test Cake/ })).toBeVisible();
 
+  // Supplies: start from the common list, then set what this show needs
+  await expect(page.getByText('No supplies yet.')).toBeVisible();
+  await page.getByRole('button', { name: 'Add common supplies' }).click();
+  const tape = page.getByTestId('supply-Fuse tape');
+  await tape.getByLabel('Needed').fill('3');
+  await tape.getByLabel('Needed').press('Tab');
+  await tape.getByLabel('Owned').fill('1');
+  await tape.getByLabel('Owned').press('Tab');
+  await tape.getByLabel('Cost each').fill('4');
+  await tape.getByLabel('Cost each').press('Tab');
+  await expect(tape).toContainText('$12.00');
+  await expect(tape.getByRole('cell').nth(3)).toHaveText('2'); // to buy
+  await page.getByRole('button', { name: '+ Supply' }).click();
+  await page.getByTestId('supply-New supply').getByLabel('Supply name').fill('Sandbags');
+  await page.getByTestId('supply-Sandbags').getByLabel('Needed').fill('0');
+  await page.getByTestId('supply-Sandbags').getByLabel('Needed').press('Tab');
+
   // Firing system: one receiver
   await page.getByRole('button', { name: 'Firing System', exact: true }).click();
   await page.getByRole('button', { name: '+ Generic 12-cue receiver' }).click();
@@ -113,6 +130,30 @@ test('build a show from scratch, undo, autosave and print', async ({ page }) => 
   await expect(page.getByTestId('node-Test Rocket')).toContainText('Rocket');
   await expect(page.locator('.react-flow__edge')).toHaveCount(1);
 
+  // A board: resize it, then put the cake on it from the inspector and drag the board
+  await page.getByRole('button', { name: '▭ Board' }).click();
+  const board = page.getByTestId('board-Board 1');
+  await expect(board).toBeVisible();
+  // A new board starts out selected
+  await page.getByLabel('Width').fill('36');
+  await page.getByLabel('Width').press('Tab');
+  await page.getByLabel('Depth').fill('18');
+  await page.getByLabel('Depth').press('Tab');
+  await expect(board).toContainText('36 × 18 in');
+  await page.getByTestId('node-Test Cake').click();
+  await page.getByRole('combobox', { name: 'Board' }).selectOption({ label: 'Board 1' });
+  await expect(board).toContainText('1 item');
+  await page.screenshot({ path: 'test-results/shots/board-canvas.png' });
+  const cakeBefore = (await page.getByTestId('node-Test Cake').boundingBox())!;
+  const bb = (await board.boundingBox())!;
+  await page.mouse.move(bb.x + bb.width - 30, bb.y + 8);
+  await page.mouse.down();
+  await page.mouse.move(bb.x + bb.width + 30, bb.y + 48, { steps: 8 });
+  await page.mouse.up();
+  const cakeAfter = (await page.getByTestId('node-Test Cake').boundingBox())!;
+  expect(cakeAfter.x - cakeBefore.x).toBeGreaterThan(20); // rode along with the board
+  await expect(board).toContainText('1 item');
+
   // Reports reflect it
   await page.getByRole('button', { name: /^Reports/ }).click();
   await expect(page.getByTestId('cost-table')).toContainText('Test Cake');
@@ -122,9 +163,17 @@ test('build a show from scratch, undo, autosave and print', async ({ page }) => 
   await page.getByRole('button', { name: '🖨 Worksheet PDF' }).click();
   await page.waitForFunction(() => (window as unknown as { __printed: number }).__printed === 1);
   await expect(page.locator('.print-root')).toContainText('Setup worksheet');
-  for (const supply of ['Fuse tape', 'Fuse cutter', 'Cling film', 'PPE', 'Stabilization']) {
-    await expect(page.locator('.print-root')).toContainText(supply);
-  }
+  const sheet = page.locator('.print-root');
+  // Supplies come from the inventory; one not needed for this show is left off
+  await expect(sheet).toContainText('Fuse tape3 (buy 2)');
+  await expect(sheet).toContainText('Fuse cutter');
+  await expect(sheet).not.toContainText('Sandbags');
+  await expect(sheet).toContainText('Board 1: 3 ft wide × 18 in deep · holds Test Cake');
+  await expect(sheet.getByTestId('position-layout')).toHaveCount(1);
+  await expect(sheet.getByTestId('position-layout')).toContainText('Board 1');
+  await expect(sheet.getByTestId('position-layout')).toContainText('Test Cake');
+  await expect(sheet).toContainText('Operators are wearing PPE');
+  await expect(sheet).toContainText('Operator designated for firewatch');
 
   // Autosave survives a reload
   await page.reload();

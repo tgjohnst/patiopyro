@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 
 const shot = (page: Page, name: string) => page.screenshot({ path: `test-results/shots/${name}.png` });
@@ -88,12 +89,18 @@ test('demo show: layout, fuse, timeline, reports and exports', async ({ page }) 
   expect(xlsx.suggestedFilename()).toMatch(/\.xlsx$/);
   const [csv] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Cost \.csv/ }).click()]);
   expect(csv.suggestedFilename()).toMatch(/\.csv$/);
+  const csvText = (await readFile((await csv.path())!)).toString();
+  expect(csvText.split('\n')[0]).toBe('Category,Item,Detail,Qty,Unit,Duration (s),Unit cost,Cost / shot,Cost / sec,Total');
+  expect(csvText).toMatch(/^Cakes,Night Owl,[^\n]*,1,ea,30,45,1\.8,1\.5,45$/m);
+  expect(csvText).toMatch(/^Supplies,Landscape stakes,4 on hand · Two per cake board corner,8,ea,,0\.75,,,6$/m);
 
   await page.getByRole('button', { name: 'Setup worksheet' }).click();
   await expect(page.getByText('Fuse chains, in cue order').first()).toBeVisible();
   // One fuse diagram per rack: the shell rack on Left and the rocket rack in Center.
   await expect(page.getByTestId('rack-fuse-diagram')).toHaveCount(2);
   await expect(page.getByText('fire enters the rack here').first()).toBeVisible();
+  await expect(page.getByTestId('position-layout')).toHaveCount(3);
+  await expect(page.getByText('Cake board: 3 ft wide × 12 in deep · holds Night Owl, Crackling Willow')).toBeVisible();
   await shot(page, '9-worksheet');
   await page.getByRole('button', { name: 'Show plan', exact: true }).click();
   await expect(page.getByText('End of show').first()).toBeVisible();

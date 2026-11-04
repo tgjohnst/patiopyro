@@ -13,7 +13,8 @@ import {
 import type { EffectTiming } from '../../engine/timing';
 import { formatTime } from '../../lib/format';
 import { KIND_ICON, isTubeLoadable, type FuseableItem } from '../../model/catalog';
-import type { PlacedItem, Rack } from '../../model/schema';
+import type { Board, PlacedItem, Rack } from '../../model/schema';
+import { CANVAS_TUBE_PX } from '../../engine/layout';
 import { setTubeShell } from '../../store/actions';
 import { getShow } from '../../store/showStore';
 import { DND_CATALOG, useUi } from '../../store/uiStore';
@@ -37,12 +38,14 @@ export type RackNodeData = {
 };
 export type IgniterNodeData = { title: string; subtitle: string; ok: boolean; kind: 'ematch' | 'talon' };
 export type JunctionNodeData = { label: string };
+export type BoardNodeData = { board: Board; sizeLabel: string; itemCount: number };
 
 export type ItemNodeT = Node<ItemNodeData, 'item'>;
 export type RackNodeT = Node<RackNodeData, 'rack'>;
 export type IgniterNodeT = Node<IgniterNodeData, 'igniter'>;
 export type JunctionNodeT = Node<JunctionNodeData, 'junction'>;
-export type CanvasNode = ItemNodeT | RackNodeT | IgniterNodeT | JunctionNodeT;
+export type BoardNodeT = Node<BoardNodeData, 'board'>;
+export type CanvasNode = ItemNodeT | RackNodeT | IgniterNodeT | JunctionNodeT | BoardNodeT;
 
 const handleCls = '!h-3 !w-3 !border-2 !border-slate-900 !bg-amber-400';
 
@@ -101,7 +104,7 @@ export const ItemNode = memo(function ItemNode({ data, selected }: NodeProps<Ite
   );
 });
 
-const TUBE = 26;
+const TUBE = CANVAS_TUBE_PX;
 
 export const RackNode = memo(function RackNode({ data, selected }: NodeProps<RackNodeT>) {
   const { rack, placed } = data;
@@ -216,7 +219,29 @@ export const JunctionNode = memo(function JunctionNode({ data, selected }: NodeP
   );
 });
 
-export const nodeTypes = { item: ItemNode, rack: RackNode, igniter: IgniterNode, junction: JunctionNode };
+/** A board drawn to scale; items dropped on it sit on it and move with it. */
+export const BoardNode = memo(function BoardNode({ data, selected, width, height }: NodeProps<BoardNodeT>) {
+  return (
+    <div
+      className={clsx(
+        'rounded-md border-2 border-dashed bg-amber-900/15',
+        selected ? 'border-amber-400' : 'border-amber-700/60',
+      )}
+      style={{ width, height }}
+      data-testid={`board-${data.board.name}`}
+    >
+      <div className="flex gap-2 px-2 py-1 text-[11px] text-amber-200/80">
+        <span className="font-semibold">{data.board.name}</span>
+        <span>{data.sizeLabel}</span>
+        <span className="ml-auto text-amber-200/50">
+          {data.itemCount} item{data.itemCount === 1 ? '' : 's'}
+        </span>
+      </div>
+    </div>
+  );
+});
+
+export const nodeTypes = { item: ItemNode, rack: RackNode, igniter: IgniterNode, junction: JunctionNode, board: BoardNode };
 
 export type FuseEdgeData = { color: string; label: string };
 

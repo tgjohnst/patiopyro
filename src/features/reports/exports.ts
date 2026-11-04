@@ -2,7 +2,7 @@ import type * as XLSXTypes from 'xlsx';
 import { buildCueList } from '../../engine/cues';
 import { downloadBlob, safeFilename } from '../../lib/file';
 import { formatTime } from '../../lib/format';
-import { KIND_LABEL, costPerSecond, costPerShot, itemUnitCost } from '../../model/catalog';
+import { KIND_LABEL, costPerSecond, costPerShot, effectDurationSec, isFuseable, isTubeLoadable, itemUnitCost } from '../../model/catalog';
 import type { Show } from '../../model/schema';
 import type { Derived } from '../../store/showStore';
 
@@ -20,14 +20,14 @@ function moneyCols(XLSX: typeof XLSXTypes, ws: XLSXTypes.WorkSheet, cols: number
 
 export function costRows(show: Show, d: Derived) {
   const rows: (string | number)[][] = [
-    ['Category', 'Item', 'Detail', 'Qty', 'Unit', 'Unit cost', 'Cost / shot', 'Cost / sec', 'Total'],
+    ['Category', 'Item', 'Detail', 'Qty', 'Unit', 'Duration (s)', 'Unit cost', 'Cost / shot', 'Cost / sec', 'Total'],
   ];
   for (const l of d.cost.lines) {
-    rows.push([l.category, l.name, l.detail, l.qty, l.unit, l.unitCost, l.perShot ?? '', l.perSec ?? '', l.total]);
+    rows.push([l.category, l.name, l.detail, l.qty, l.unit, l.durationSec ?? '', l.unitCost, l.perShot ?? '', l.perSec ?? '', l.total]);
   }
   rows.push([]);
-  for (const s of d.cost.subtotals) rows.push(['Subtotal', s.category, '', '', '', '', '', '', s.total]);
-  rows.push(['TOTAL', show.meta.name, '', '', '', '', '', '', d.cost.total]);
+  for (const s of d.cost.subtotals) rows.push(['Subtotal', s.category, '', '', '', '', '', '', '', s.total]);
+  rows.push(['TOTAL', show.meta.name, '', '', '', '', '', '', '', d.cost.total]);
   return rows;
 }
 
@@ -52,8 +52,9 @@ export async function exportCostXlsx(show: Show, d: Derived) {
     { wch: 12 },
     { wch: 12 },
     { wch: 12 },
+    { wch: 12 },
   ];
-  moneyCols(XLSX, cost, [5, 6, 7, 8], header.length + 1);
+  moneyCols(XLSX, cost, [6, 7, 8, 9], header.length + 1);
   XLSX.utils.book_append_sheet(wb, cost, 'Show cost');
 
   const invRows: (string | number)[][] = [
@@ -63,6 +64,7 @@ export async function exportCostXlsx(show: Show, d: Derived) {
     const use = d.totals.inventory.find((u) => u.catalogId === item.id)?.used ?? 0;
     const unit = itemUnitCost(item, show);
     const timed = item.kind === 'cake' || item.kind === 'candle';
+    const duration = isFuseable(item) || isTubeLoadable(item) ? effectDurationSec(item) : '';
     invRows.push([
       KIND_LABEL[item.kind],
       item.name,
@@ -71,7 +73,7 @@ export async function exportCostXlsx(show: Show, d: Derived) {
       item.qtyOwned - use,
       unit,
       timed ? item.shots : '',
-      timed ? item.durationSec : '',
+      duration,
       costPerShot(item, show) ?? '',
       costPerSecond(item, show) ?? '',
       unit * item.qtyOwned,
@@ -97,6 +99,23 @@ export async function exportCostXlsx(show: Show, d: Derived) {
         ]);
       }
     }
+  }
+  for (const sup of show.supplies) {
+    invRows.push([
+      'Supply',
+      sup.name,
+      sup.qtyOwned,
+      sup.qtyNeeded,
+      sup.qtyOwned - sup.qtyNeeded,
+      sup.unitCost,
+      '',
+      '',
+      '',
+      '',
+      sup.unitCost * sup.qtyOwned,
+      sup.unitCost * sup.qtyNeeded,
+      sup.url,
+    ]);
   }
   invRows.push([], ['TOTAL', '', '', '', '', '', '', '', '', '', d.cost.inventoryValue, '']);
   const inv = XLSX.utils.aoa_to_sheet(invRows);

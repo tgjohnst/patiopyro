@@ -11,7 +11,7 @@ import {
   sequenceSubCakes,
   shellUnitCost,
 } from '../model/catalog';
-import { DEFAULT_WORKSHEET_SUPPLIES } from '../model/constants';
+import { LEGACY_DEFAULT_WORKSHEET_SUPPLIES } from '../model/constants';
 import { createEmptyShow } from '../model/defaults';
 import { createDemoShow } from '../model/demo';
 import { inKey, nodeKey, outKey, tubeKey } from '../model/endpoints';
@@ -19,6 +19,7 @@ import { controllerFromPreset, presetById } from '../model/presets';
 import type { Assortment, Cake, Candle, FiringModule, Rack, Rocket, Shell, Show, SubCake } from '../model/schema';
 import { parseShow } from '../model/schema';
 import { buildPositionSheets } from './chains';
+import { BOARD_PX_PER_IN, boardAt, positionLayout } from './layout';
 import { computeCost } from './cost';
 import { buildCueList } from './cues';
 import { computeTiming } from './timing';
@@ -365,14 +366,29 @@ describe('show file', () => {
     expect(parseShow(raw).catalog[0].url).toBe('');
   });
 
-  it('fills in cake classification and worksheet supplies for older files', () => {
+  it('fills in cake classification, supplies and boards for older files', () => {
     const raw = JSON.parse(JSON.stringify(baseShow()));
     delete raw.catalog[0].weightClass;
     delete raw.catalog[0].categories;
-    delete raw.settings.worksheetSupplies;
+    delete raw.supplies;
+    delete raw.boards;
     const show = parseShow(raw);
     expect(show.catalog[0]).toMatchObject({ weightClass: null, categories: [] });
-    expect(show.settings.worksheetSupplies).toEqual(DEFAULT_WORKSHEET_SUPPLIES);
+    expect(show.supplies).toEqual([]);
+    expect(show.boards).toEqual([]);
+  });
+
+  it('drops the old built-in supplies checklist but keeps lines the user changed as supplies', () => {
+    const raw = JSON.parse(JSON.stringify(baseShow()));
+    delete raw.supplies;
+    raw.settings.worksheetSupplies = [...LEGACY_DEFAULT_WORKSHEET_SUPPLIES];
+    expect(parseShow(raw).supplies).toEqual([]);
+    expect('worksheetSupplies' in parseShow(raw).settings).toBe(false);
+    raw.settings.worksheetSupplies = ['Fuse tape', '', '  Lighter  '];
+    expect(parseShow(raw).supplies).toEqual([
+      expect.objectContaining({ name: 'Fuse tape', qtyNeeded: 1, qtyOwned: 0, unitCost: 0, notes: '', url: '' }),
+      expect.objectContaining({ name: 'Lighter' }),
+    ]);
   });
 
   it('rejects unknown cake categories and weight classes', () => {
@@ -597,6 +613,87 @@ describe('assortments', () => {
     expect(show.assortments).toEqual([]);
     const loaded = show.catalog.find((c) => c.kind === 'cake') as Cake;
     expect(loaded).toMatchObject({ assortmentId: null, assortmentQty: 1 });
+  });
+});
+
+describe('supplies and durations in the cost report', () => {
+  it('costs supplies needed for the show and values supplies owned', () => {
+    const show = baseShow();
+    show.supplies = [
+      { id: 'tape', name: 'Fuse tape', qtyNeeded: 2, qtyOwned: 1, unitCost: 4, notes: '', url: '' },
+      { id: 'spare', name: 'Spare stakes', qtyNeeded: 0, qtyOwned: 10, unitCost: 1, notes: '', url: '' },
+    ];
+    const cost = computeCost(show, computeTotals(show));
+    const supplies = cost.lines.filter((l) => l.category === 'Supplies');
+    expect(supplies).toEqual([expect.objectContaining({ name: 'Fuse tape', qty: 2, total: 8, durationSec: null })]);
+    expect(cost.subtotals.find((s) => s.category === 'Supplies')?.total).toBe(8);
+    expect(cost.inventoryLines.filter((l) => l.category === 'Supplies').map((l) => l.total)).toEqual([4, 10]);
+  });
+
+  it('gives each firework its duration: effect time for cakes and candles, burst time for shells and rockets', () => {
+    const show = baseShow();
+    const pos = show.positions[0].id;
+    show.catalog.push(rocket('R'), candle('C'));
+    show.placed = [
+      { id: 'pA', catalogId: 'A', positionId: pos, x: 0, y: 0, label: '' },
+      { id: 'pR', catalogId: 'R', positionId: pos, x: 0, y: 0, label: '' },
+      { id: 'pC', catalogId: 'C', positionId: pos, x: 0, y: 0, label: '' },
+      { id: 'r', catalogId: 'rack', positionId: pos, x: 0, y: 0, label: '', tubes: ['S', null, null] },
+    ];
+    show.settings.includeRacksInCost = true;
+    const cost = computeCost(show, computeTotals(show));
+    expect(cost.lines.map((l) => [l.name, l.durationSec])).toEqual([
+      ['A', 20],
+      ['C', 15],
+      ['R', 2],
+      ['S', 3],
+      ['Rack 3', null],
+    ]);
+  });
+});
+
+describe('boards and position layout', () => {
+  function boardShow() {
+    const show = baseShow();
+    const pos = show.positions[0].id;
+    show.boards = [{ id: 'b1', positionId: pos, name: 'Board 1', widthIn: 48, depthIn: 24, x: 100, y: 100 }];
+    show.placed = [
+      { id: 'pA', catalogId: 'A', positionId: pos, x: 120, y: 130, label: '', boardId: 'b1' },
+      { id: 'r', catalogId: 'rack', positionId: pos, x: 1000, y: 100, label: '', tubes: ['S', null, null] },
+    ];
+    show.fuseNodes = [{ id: 'i1', kind: 'igniter', positionId: pos, x: 0, y: 0, moduleId: 'M1', pin: 1 }];
+    show.fuseSegments = [
+      { id: 's1', positionId: pos, from: nodeKey('i1'), to: inKey('pA'), fuseTypeId: QUICK, lengthIn: 0 },
+      { id: 's2', positionId: pos, from: outKey('pA'), to: tubeKey('r', 0), fuseTypeId: GREEN, lengthIn: 12 },
+    ];
+    return show;
+  }
+
+  it('finds the board under a point, to scale', () => {
+    const { boards } = boardShow();
+    const pos = boards[0].positionId;
+    expect(boardAt(boards, pos, 100 + 48 * BOARD_PX_PER_IN - 1, 100 + 24 * BOARD_PX_PER_IN - 1)?.id).toBe('b1');
+    expect(boardAt(boards, pos, 99, 150)).toBeUndefined();
+    expect(boardAt(boards, 'elsewhere', 150, 150)).toBeUndefined();
+  });
+
+  it('lays out boards, items, igniters and fuse for the worksheet', () => {
+    const show = boardShow();
+    const layout = positionLayout(show, show.positions[0].id, computeTiming(show));
+    expect(layout.boards).toEqual([
+      expect.objectContaining({ name: 'Board 1', w: 48 * BOARD_PX_PER_IN, h: 24 * BOARD_PX_PER_IN, items: ['A'] }),
+    ]);
+    expect(layout.boxes.map((b) => [b.kind, b.label])).toEqual([
+      ['item', 'A'],
+      ['rack', 'Rack 3'],
+      ['igniter', 'M1 #1'],
+    ]);
+    const cake = layout.boxes[0];
+    // Fuse runs from the igniter's handle to the cake's lead fuse (left middle), and on from its exit fuse
+    expect(layout.lines[0]).toMatchObject({ x1: 52, y1: 36, x2: 120, y2: 130 + cake.h / 2 });
+    expect(layout.lines[1]).toMatchObject({ x1: 120 + cake.w, y1: 130 + cake.h / 2 });
+    expect(layout.bounds).toMatchObject({ x: 0, y: 0 });
+    expect(positionLayout(createEmptyShow(), 'none', computeTiming(createEmptyShow())).bounds).toBeNull();
   });
 });
 

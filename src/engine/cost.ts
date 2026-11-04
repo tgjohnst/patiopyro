@@ -1,8 +1,17 @@
-import { cakeAssortment, costPerSecond, costPerShot, itemUnitCost, type PricingContext } from '../model/catalog';
+import {
+  cakeAssortment,
+  costPerSecond,
+  costPerShot,
+  effectDurationSec,
+  isFuseable,
+  isTubeLoadable,
+  itemUnitCost,
+  type PricingContext,
+} from '../model/catalog';
 import type { CatalogItem, Show } from '../model/schema';
 import type { Totals } from './totals';
 
-export type CostCategory = 'Cakes' | 'Roman candles' | 'Rockets' | 'Shells' | 'Racks' | 'Fuse' | 'Igniters';
+export type CostCategory = 'Cakes' | 'Roman candles' | 'Rockets' | 'Shells' | 'Racks' | 'Supplies' | 'Fuse' | 'Igniters';
 
 export interface CostLine {
   category: CostCategory;
@@ -15,6 +24,8 @@ export interface CostLine {
   /** Cakes and roman candles only. */
   perShot: number | null;
   perSec: number | null;
+  /** Seconds of effect for one firework (burst time for shells and rockets); null for everything else. */
+  durationSec: number | null;
 }
 
 export interface CostReport {
@@ -25,7 +36,7 @@ export interface CostReport {
   inventoryValue: number;
 }
 
-const CATEGORY_ORDER: CostCategory[] = ['Cakes', 'Roman candles', 'Rockets', 'Shells', 'Racks', 'Fuse', 'Igniters'];
+const CATEGORY_ORDER: CostCategory[] = ['Cakes', 'Roman candles', 'Rockets', 'Shells', 'Racks', 'Supplies', 'Fuse', 'Igniters'];
 
 const ITEM_CATEGORY: Record<CatalogItem['kind'], CostCategory> = {
   cake: 'Cakes',
@@ -34,6 +45,10 @@ const ITEM_CATEGORY: Record<CatalogItem['kind'], CostCategory> = {
   shell: 'Shells',
   rack: 'Racks',
 };
+
+function itemDuration(item: CatalogItem): number | null {
+  return isFuseable(item) || isTubeLoadable(item) ? effectDurationSec(item) : null;
+}
 
 function itemDetail(item: CatalogItem, ctx: PricingContext): string {
   switch (item.kind) {
@@ -79,6 +94,23 @@ export function computeCost(show: Show, totals: Totals): CostReport {
       total: unitCost * use.used,
       perShot: costPerShot(item, show),
       perSec: costPerSecond(item, show),
+      durationSec: itemDuration(item),
+    });
+  }
+
+  for (const sup of show.supplies) {
+    if (sup.qtyNeeded === 0) continue;
+    lines.push({
+      category: 'Supplies',
+      name: sup.name,
+      detail: [sup.qtyOwned > 0 && `${sup.qtyOwned} on hand`, sup.notes].filter(Boolean).join(' · '),
+      qty: sup.qtyNeeded,
+      unit: 'ea',
+      unitCost: sup.unitCost,
+      total: sup.unitCost * sup.qtyNeeded,
+      perShot: null,
+      perSec: null,
+      durationSec: null,
     });
   }
 
@@ -93,6 +125,7 @@ export function computeCost(show: Show, totals: Totals): CostReport {
       total: f.rolls * f.rollCost,
       perShot: null,
       perSec: null,
+      durationSec: null,
     });
   }
 
@@ -107,6 +140,7 @@ export function computeCost(show: Show, totals: Totals): CostReport {
       total: totals.igniters.total * show.settings.igniterUnitCost,
       perShot: null,
       perSec: null,
+      durationSec: null,
     });
   }
 
@@ -121,6 +155,18 @@ export function computeCost(show: Show, totals: Totals): CostReport {
     total: lines.filter((l) => l.category === category).reduce((s, l) => s + l.total, 0),
   })).filter((s) => s.total > 0);
 
+  const supplyLines: CostLine[] = show.supplies.map((sup) => ({
+    category: 'Supplies',
+    name: sup.name,
+    detail: '',
+    qty: sup.qtyOwned,
+    unit: 'ea',
+    unitCost: sup.unitCost,
+    total: sup.unitCost * sup.qtyOwned,
+    perShot: null,
+    perSec: null,
+    durationSec: null,
+  }));
   const inventoryLines: CostLine[] = show.catalog.map((item) => {
     const unitCost = itemUnitCost(item, show);
     return {
@@ -133,8 +179,10 @@ export function computeCost(show: Show, totals: Totals): CostReport {
       total: unitCost * item.qtyOwned,
       perShot: costPerShot(item, show),
       perSec: costPerSecond(item, show),
+      durationSec: itemDuration(item),
     };
   });
+  inventoryLines.push(...supplyLines);
 
   return {
     lines,

@@ -181,11 +181,12 @@ export function ReportsTab() {
                   <th className="py-1">Category</th>
                   <th>Item</th>
                   <th>Detail</th>
-                  <th className="text-right">Qty</th>
-                  <th className="text-right">Unit cost</th>
-                  <th className="text-right" title="Cakes and roman candles">Cost / shot</th>
-                  <th className="text-right" title="Cakes and roman candles">Cost / sec</th>
-                  <th className="text-right">Total</th>
+                  <th className="pl-3 text-right">Qty</th>
+                  <th className="pl-3 text-right" title="Per firework; burst time for shells and rockets">Duration</th>
+                  <th className="pl-3 text-right">Unit cost</th>
+                  <th className="pl-3 text-right" title="Cakes and roman candles">Cost / shot</th>
+                  <th className="pl-3 text-right" title="Cakes and roman candles">Cost / sec</th>
+                  <th className="pl-3 text-right">Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
@@ -194,27 +195,28 @@ export function ReportsTab() {
                     <td className="py-1 text-slate-400">{l.category}</td>
                     <td>{l.name}</td>
                     <td className="text-xs text-slate-500">{l.detail}</td>
-                    <td className="text-right">
+                    <td className="pl-3 text-right">
                       {l.qty} <span className="text-xs text-slate-500">{l.unit}</span>
                     </td>
-                    <td className="text-right">{formatMoney(l.unitCost)}</td>
-                    <td className="text-right text-slate-400">{l.perShot !== null ? formatMoney(l.perShot) : '—'}</td>
-                    <td className="text-right text-slate-400">{l.perSec !== null ? formatMoney(l.perSec) : '—'}</td>
-                    <td className="text-right">{formatMoney(l.total)}</td>
+                    <td className="pl-3 text-right text-slate-400">{l.durationSec !== null ? `${l.durationSec}s` : '—'}</td>
+                    <td className="pl-3 text-right">{formatMoney(l.unitCost)}</td>
+                    <td className="pl-3 text-right text-slate-400">{l.perShot !== null ? formatMoney(l.perShot) : '—'}</td>
+                    <td className="pl-3 text-right text-slate-400">{l.perSec !== null ? formatMoney(l.perSec) : '—'}</td>
+                    <td className="pl-3 text-right">{formatMoney(l.total)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 {cost.subtotals.map((s) => (
                   <tr key={s.category} className="text-slate-400">
-                    <td colSpan={7} className="pt-1 text-right">
+                    <td colSpan={8} className="pt-1 text-right">
                       {s.category}
                     </td>
-                    <td className="text-right">{formatMoney(s.total)}</td>
+                    <td className="pl-3 text-right">{formatMoney(s.total)}</td>
                   </tr>
                 ))}
                 <tr className="font-semibold text-slate-100">
-                  <td colSpan={7} className="pt-2 text-right">
+                  <td colSpan={8} className="pt-2 text-right">
                     Total
                   </td>
                   <td className="pt-2 text-right">{formatMoney(cost.total)}</td>

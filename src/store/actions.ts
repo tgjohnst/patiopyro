@@ -5,6 +5,7 @@ import { endpointPlacedId, inKey, nodeKey, outKey, tubeKey } from '../model/endp
 import { controllerFromPreset, presetById, type ModuleModel } from '../model/presets';
 import type {
   Assortment,
+  Board,
   CatalogItem,
   Controller,
   FiringModule,
@@ -14,6 +15,7 @@ import type {
   Settings,
   Show,
   SiteMap,
+  Supply,
 } from '../model/schema';
 import { mutate } from './showStore';
 
@@ -140,6 +142,26 @@ export function deleteAssortment(id: string) {
   });
 }
 
+// ---------- supplies ----------
+
+export function upsertSupply(sup: Supply) {
+  mutate((s) => {
+    const i = s.supplies.findIndex((x) => x.id === sup.id);
+    if (i >= 0) s.supplies[i] = sup;
+    else s.supplies.push(sup);
+  });
+}
+
+export function addSupplies(list: Supply[]) {
+  mutate((s) => void s.supplies.push(...list));
+}
+
+export function deleteSupply(id: string) {
+  mutate((s) => {
+    s.supplies = s.supplies.filter((x) => x.id !== id);
+  });
+}
+
 // ---------- fuse types ----------
 
 export function upsertFuseType(ft: FuseType) {
@@ -204,13 +226,20 @@ export function deletePosition(id: string) {
     s.positions = s.positions.filter((p) => p.id !== id);
     removePlaced(s, new Set(s.placed.filter((p) => p.positionId === id).map((p) => p.id)));
     removeNodes(s, new Set(s.fuseNodes.filter((n) => n.positionId === id).map((n) => n.id)));
+    s.boards = s.boards.filter((b) => b.positionId !== id);
     for (const m of s.firing.modules) if (m.positionId === id) m.positionId = null;
   });
 }
 
 // ---------- placed items ----------
 
-export function placeItem(catalogId: string, positionId: string, x?: number, y?: number): string {
+export function placeItem(
+  catalogId: string,
+  positionId: string,
+  x?: number,
+  y?: number,
+  boardId: string | null = null,
+): string {
   const id = uid('pl');
   mutate((s) => {
     const item = s.catalog.find((c) => c.id === catalogId);
@@ -224,6 +253,7 @@ export function placeItem(catalogId: string, positionId: string, x?: number, y?:
       y: y ?? 60 + Math.floor(count / 4) * 180,
       label: '',
     };
+    if (boardId && s.boards.some((b) => b.id === boardId && b.positionId === positionId)) placed.boardId = boardId;
     if (item.kind === 'rack') placed.tubes = Array(tubeCount(item)).fill(null);
     s.placed.push(placed);
   });
@@ -242,12 +272,14 @@ export function movePlacedToPosition(id: string, positionId: string) {
     const p = s.placed.find((x) => x.id === id);
     if (!p || p.positionId === positionId) return;
     p.positionId = positionId;
+    p.boardId = null;
     removeSegmentsTouching(s, (k) => endpointPlacedId(k) === id);
   });
 }
 
-export function deleteElements(placedIds: string[], nodeIds: string[], segmentIds: string[]) {
+export function deleteElements(placedIds: string[], nodeIds: string[], segmentIds: string[], boardIds: string[] = []) {
   mutate((s) => {
+    removeBoards(s, new Set(boardIds));
     removePlaced(s, new Set(placedIds));
     removeNodes(s, new Set(nodeIds));
     const segs = new Set(segmentIds);
@@ -317,12 +349,67 @@ export function moveNode(id: string, x: number, y: number) {
 }
 
 /** Batch position update after dragging several nodes. */
-export function moveCanvasElements(moves: { id: string; x: number; y: number }[]) {
+/**
+ * Move canvas elements. A placed item's board follows `boardId` when given (null takes it off
+ * any board); a moved board carries the items on it along with it.
+ */
+export function moveCanvasElements(moves: { id: string; x: number; y: number; boardId?: string | null }[]) {
   mutate((s) => {
+    const moved = new Set(moves.map((m) => m.id));
     for (const m of moves) {
-      const target = s.placed.find((p) => p.id === m.id) ?? s.fuseNodes.find((n) => n.id === m.id);
-      if (target) Object.assign(target, { x: m.x, y: m.y });
+      const board = s.boards.find((b) => b.id === m.id);
+      if (board) {
+        const [dx, dy] = [m.x - board.x, m.y - board.y];
+        Object.assign(board, { x: m.x, y: m.y });
+        for (const p of s.placed) {
+          if (p.boardId === board.id && !moved.has(p.id)) Object.assign(p, { x: p.x + dx, y: p.y + dy });
+        }
+        continue;
+      }
+      const placed = s.placed.find((p) => p.id === m.id);
+      if (placed) {
+        Object.assign(placed, { x: m.x, y: m.y });
+        if (m.boardId !== undefined) placed.boardId = m.boardId;
+        continue;
+      }
+      const node = s.fuseNodes.find((n) => n.id === m.id);
+      if (node) Object.assign(node, { x: m.x, y: m.y });
     }
+  });
+}
+
+// ---------- boards ----------
+
+function removeBoards(s: Show, ids: Set<string>) {
+  if (!ids.size) return;
+  s.boards = s.boards.filter((b) => !ids.has(b.id));
+  for (const p of s.placed) if (p.boardId && ids.has(p.boardId)) p.boardId = null;
+}
+
+export function addBoard(positionId: string, x: number, y: number): string {
+  const id = uid('board');
+  mutate((s) => {
+    const n = s.boards.filter((b) => b.positionId === positionId).length;
+    s.boards.push({ id, positionId, name: `Board ${n + 1}`, widthIn: 48, depthIn: 24, x: Math.round(x), y: Math.round(y) });
+  });
+  return id;
+}
+
+export function updateBoard(id: string, patch: Partial<Pick<Board, 'name' | 'widthIn' | 'depthIn'>>) {
+  mutate((s) => {
+    const b = s.boards.find((x) => x.id === id);
+    if (b) Object.assign(b, patch);
+  });
+}
+
+/** Put a placed item on a board (moving it onto the board if it sits outside), or take it off. */
+export function setPlacedBoard(placedId: string, boardId: string | null, at?: { x: number; y: number }) {
+  mutate((s) => {
+    const p = s.placed.find((x) => x.id === placedId);
+    if (!p) return;
+    const board = boardId ? s.boards.find((b) => b.id === boardId && b.positionId === p.positionId) : undefined;
+    p.boardId = board?.id ?? null;
+    if (board && at) Object.assign(p, at);
   });
 }
 

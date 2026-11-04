@@ -228,8 +228,12 @@ export function createDemoShow(): Show {
     s.fuseSegments.push({ id: uid('fz'), positionId, from, to, fuseTypeId, lengthIn });
 
   // Left: two chained cakes and a rack in three series runs on M1, and a finale cake on M2.
+  // The chained pair sits on a 36" × 12" board.
+  const board = { id: uid('board'), positionId: posA.id, name: 'Cake board', widthIn: 36, depthIn: 12, x: 20, y: 190 };
+  s.boards.push(board);
   const owl = place(nightOwl.id, posA.id, 40, 220);
   const wil = place(willow.id, posA.id, 340, 220);
+  for (const p of s.placed) if (p.id === owl || p.id === wil) p.boardId = board.id;
   seg(posA.id, igniter(posA.id, m1.id, 1, 60, 40), inKey(owl), GREEN, 2);
   seg(posA.id, outKey(owl), inKey(wil), GREEN, 4);
 
@@ -283,5 +287,13 @@ export function createDemoShow(): Show {
     [flatAddressId(5)]: 125,
   };
   s.cueNotes = { [flatAddressId(5)]: 'Finale — both sides together' };
+
+  const supply = (name: string, qtyNeeded: number, qtyOwned: number, unitCost: number, notes = '') =>
+    s.supplies.push({ id: uid('supply'), name, qtyNeeded, qtyOwned, unitCost, notes, url: '' });
+  supply('Fuse tape', 1, 1, 4);
+  supply('Landscape stakes', 8, 4, 0.75, 'Two per cake board corner');
+  supply('Plywood board, 36" × 12"', 1, 0, 9);
+  supply('Cling film', 1, 0, 5, 'Weatherproof fuse and tube tops');
+  supply('PPE: safety glasses, gloves, hearing protection', 2, 2, 15, 'One set per operator');
   return s;
 }
