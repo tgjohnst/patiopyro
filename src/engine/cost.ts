@@ -1,4 +1,4 @@
-import { costPerSecond, costPerShot, itemUnitCost } from '../model/catalog';
+import { cakeAssortment, costPerSecond, costPerShot, itemUnitCost, type PricingContext } from '../model/catalog';
 import type { CatalogItem, Show } from '../model/schema';
 import type { Totals } from './totals';
 
@@ -35,17 +35,20 @@ const ITEM_CATEGORY: Record<CatalogItem['kind'], CostCategory> = {
   rack: 'Racks',
 };
 
-function itemDetail(item: CatalogItem): string {
+function itemDetail(item: CatalogItem, ctx: PricingContext): string {
   switch (item.kind) {
-    case 'cake':
+    case 'cake': {
+      const assortment = cakeAssortment(item, ctx);
       return [
         item.brand,
         item.grade,
         `${item.shots} shots`,
         item.subCakes.length ? `compound: ${item.subCakes.map((s) => s.name).join(' + ')}` : '',
+        assortment ? `from ${assortment.name}` : '',
       ]
         .filter(Boolean)
         .join(' · ');
+    }
     case 'candle':
       return [item.brand, `${item.shots} shots`, item.effect].filter(Boolean).join(' · ');
     case 'rocket':
@@ -65,17 +68,17 @@ export function computeCost(show: Show, totals: Totals): CostReport {
     const item = catalog.get(use.catalogId)!;
     if (use.used === 0) continue;
     if (item.kind === 'rack' && !show.settings.includeRacksInCost) continue;
-    const unitCost = itemUnitCost(item);
+    const unitCost = itemUnitCost(item, show);
     lines.push({
       category: ITEM_CATEGORY[item.kind],
       name: item.name,
-      detail: itemDetail(item),
+      detail: itemDetail(item, show),
       qty: use.used,
       unit: 'ea',
       unitCost,
       total: unitCost * use.used,
-      perShot: costPerShot(item),
-      perSec: costPerSecond(item),
+      perShot: costPerShot(item, show),
+      perSec: costPerSecond(item, show),
     });
   }
 
@@ -119,7 +122,7 @@ export function computeCost(show: Show, totals: Totals): CostReport {
   })).filter((s) => s.total > 0);
 
   const inventoryLines: CostLine[] = show.catalog.map((item) => {
-    const unitCost = itemUnitCost(item);
+    const unitCost = itemUnitCost(item, show);
     return {
       category: ITEM_CATEGORY[item.kind],
       name: item.name,
@@ -128,8 +131,8 @@ export function computeCost(show: Show, totals: Totals): CostReport {
       unit: 'ea',
       unitCost,
       total: unitCost * item.qtyOwned,
-      perShot: costPerShot(item),
-      perSec: costPerSecond(item),
+      perShot: costPerShot(item, show),
+      perSec: costPerSecond(item, show),
     };
   });
 

@@ -41,6 +41,7 @@ export function createEmptyShow(): Show {
       worksheetSupplies: [...DEFAULT_WORKSHEET_SUPPLIES],
     },
     catalog: [],
+    assortments: [],
     fuseTypes: structuredClone(DEFAULT_FUSE_TYPES),
     siteMap: {
       widthFt: 100,

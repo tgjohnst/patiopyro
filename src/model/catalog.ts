@@ -1,5 +1,5 @@
 import type { CAKE_CATEGORIES } from './constants';
-import type { Cake, CatalogItem, ShellPricing, SubCake } from './schema';
+import type { Assortment, Cake, CatalogItem, ShellPricing, Show, SubCake } from './schema';
 
 export type CakeCategory = (typeof CAKE_CATEGORIES)[number];
 
@@ -32,7 +32,70 @@ export function shellUnitCost(s: { pricing: ShellPricing }): number {
   return s.pricing.mode === 'unit' ? s.pricing.unitCost : s.pricing.caseCost / s.pricing.caseQty;
 }
 
-export function itemUnitCost(item: CatalogItem): number {
+/**
+ * What pricing needs to know beyond the item itself: cakes bought in an assortment
+ * share its price with the other cakes in it.
+ */
+export type PricingContext = Pick<Show, 'catalog' | 'assortments'>;
+
+export interface AssortmentStats {
+  cakes: Cake[];
+  /** Cakes in one assortment, counting duplicates. */
+  pieces: number;
+  /** Shots across one whole assortment. */
+  shots: number;
+  /** Seconds of effect across one whole assortment. */
+  durationSec: number;
+  perShot: number | null;
+  perSec: number | null;
+}
+
+export function assortmentStats(a: Assortment, catalog: CatalogItem[]): AssortmentStats {
+  const cakes = catalog.filter((c): c is Cake => c.kind === 'cake' && c.assortmentId === a.id).map(normalizeCake);
+  const sum = (f: (c: Cake) => number) => cakes.reduce((n, c) => n + f(c) * c.assortmentQty, 0);
+  const shots = sum((c) => c.shots);
+  const durationSec = sum((c) => c.durationSec);
+  return {
+    cakes,
+    pieces: sum(() => 1),
+    shots,
+    durationSec,
+    perShot: shots > 0 ? a.cost / shots : null,
+    perSec: durationSec > 0 ? a.cost / durationSec : null,
+  };
+}
+
+/** The assortment a cake is priced by, if it belongs to one that exists. */
+export function cakeAssortment(item: CatalogItem, ctx?: PricingContext): Assortment | undefined {
+  if (item.kind !== 'cake' || !item.assortmentId || !ctx) return undefined;
+  return ctx.assortments.find((a) => a.id === item.assortmentId);
+}
+
+/** The cake as pricing sees it inside the context (an unsaved edit replaces the stored copy). */
+function withItem(ctx: PricingContext, item: Cake): PricingContext {
+  const i = ctx.catalog.findIndex((c) => c.id === item.id);
+  const catalog = i >= 0 ? ctx.catalog.map((c, j) => (j === i ? item : c)) : [...ctx.catalog, item];
+  return { ...ctx, catalog };
+}
+
+function assortmentPricing(item: CatalogItem, ctx?: PricingContext) {
+  const a = cakeAssortment(item, ctx);
+  if (!a || item.kind !== 'cake' || !ctx) return null;
+  const stats = assortmentStats(a, withItem(ctx, item).catalog);
+  const cake = normalizeCake(item);
+  // Share the price by shots; with no shots entered anywhere, split it evenly per cake.
+  const unitCost =
+    stats.shots > 0 ? (a.cost * cake.shots) / stats.shots : stats.pieces > 0 ? a.cost / stats.pieces : 0;
+  return { assortment: a, stats, unitCost };
+}
+
+/**
+ * Cost of one item. A cake in an assortment gets its share of the assortment price,
+ * weighted by shots, so its cost per shot matches the assortment's.
+ */
+export function itemUnitCost(item: CatalogItem, ctx?: PricingContext): number {
+  const shared = assortmentPricing(item, ctx);
+  if (shared) return shared.unitCost;
   return 'pricing' in item ? shellUnitCost(item) : item.unitCost;
 }
 
@@ -65,15 +128,22 @@ export function itemShots(item: CatalogItem): number | null {
   }
 }
 
-/** Cost per shot for cakes and roman candles; null when there is nothing to divide by. */
-export function costPerShot(item: CatalogItem): number | null {
+/**
+ * Cost per shot for cakes and roman candles; null when there is nothing to divide by.
+ * Cakes in an assortment use the assortment's price over all of its shots.
+ */
+export function costPerShot(item: CatalogItem, ctx?: PricingContext): number | null {
   if (item.kind !== 'cake' && item.kind !== 'candle') return null;
+  const shared = assortmentPricing(item, ctx);
+  if (shared) return shared.stats.perShot;
   return item.shots > 0 ? itemUnitCost(item) / item.shots : null;
 }
 
-/** Cost per second of effect for cakes and roman candles. */
-export function costPerSecond(item: CatalogItem): number | null {
+/** Cost per second of effect for cakes and roman candles, across the assortment for cakes in one. */
+export function costPerSecond(item: CatalogItem, ctx?: PricingContext): number | null {
   if (item.kind !== 'cake' && item.kind !== 'candle') return null;
+  const shared = assortmentPricing(item, ctx);
+  if (shared) return shared.stats.perSec;
   return item.durationSec > 0 ? itemUnitCost(item) / item.durationSec : null;
 }
 

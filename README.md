@@ -18,6 +18,7 @@ There is no server. Your show autosaves in the browser, and you can save or open
   - Cakes: shots, duration, lead delay, exit fuse, 1.4G / 1.4G Pro-line grade, brand, cost.
   - Cake weight class (200g, 350g, 500g, 1000g+) and color-coded category labels (big breaks, small, medium, long, finale, zipper, NOAB, fan, barrage, ghost, colors, strobe, transition, fast, golden, slow and more).
   - Compound cakes: break a cake into its fused sub cakes, each with shots, start time, duration, effect and categories. The cake's shots and duration come from its sub cakes.
+  - Assortments: packs of cakes bought for one price. Tag each cake with its assortment (and how many come in it); the assortment's shots and duration come from its cakes, so cost per shot and per second are worked out across the whole assortment, and each cake's cost is its share of the price by shots.
   - Cost per shot and cost per second for cakes and roman candles.
   - Rockets (light-to-burst, burst time) and roman candles (shots, duration, lead delay), priced each or by the pack.
   - Shells: effect, size, light-to-burst time, per-shell or bulk-case pricing.

@@ -61,7 +61,7 @@ export async function exportCostXlsx(show: Show, d: Derived) {
   ];
   for (const item of show.catalog) {
     const use = d.totals.inventory.find((u) => u.catalogId === item.id)?.used ?? 0;
-    const unit = itemUnitCost(item);
+    const unit = itemUnitCost(item, show);
     const timed = item.kind === 'cake' || item.kind === 'candle';
     invRows.push([
       KIND_LABEL[item.kind],
@@ -72,8 +72,8 @@ export async function exportCostXlsx(show: Show, d: Derived) {
       unit,
       timed ? item.shots : '',
       timed ? item.durationSec : '',
-      costPerShot(item) ?? '',
-      costPerSecond(item) ?? '',
+      costPerShot(item, show) ?? '',
+      costPerSecond(item, show) ?? '',
       unit * item.qtyOwned,
       unit * use,
       item.url,

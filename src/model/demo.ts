@@ -42,6 +42,8 @@ export function createDemoShow(): Show {
     weightClass: null,
     categories: [],
     subCakes: [],
+    assortmentId: null,
+    assortmentQty: 1,
     ...extra,
   });
   const sub = (name: string, extra: Omit<SubCake, 'id' | 'name'>): SubCake => ({ id: uid('sub'), name, ...extra });

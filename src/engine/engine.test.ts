@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { channelAddressId, cueDistrict, flatAddressId, moduleAddressId, pinAddress } from '../model/addressing';
 import {
+  assortmentStats,
   costPerSecond,
   costPerShot,
+  itemUnitCost,
   normalizeCake,
   normalizeUrl,
   safeHref,
@@ -14,7 +16,7 @@ import { createEmptyShow } from '../model/defaults';
 import { createDemoShow } from '../model/demo';
 import { inKey, nodeKey, outKey, tubeKey } from '../model/endpoints';
 import { controllerFromPreset, presetById } from '../model/presets';
-import type { Cake, Candle, FiringModule, Rack, Rocket, Shell, Show, SubCake } from '../model/schema';
+import type { Assortment, Cake, Candle, FiringModule, Rack, Rocket, Shell, Show, SubCake } from '../model/schema';
 import { parseShow } from '../model/schema';
 import { buildPositionSheets } from './chains';
 import { computeCost } from './cost';
@@ -45,6 +47,8 @@ function cake(id: string, overrides: Partial<Cake> = {}): Cake {
     weightClass: null,
     categories: [],
     subCakes: [],
+    assortmentId: null,
+    assortmentQty: 1,
     ...overrides,
   };
 }
@@ -532,6 +536,67 @@ describe('cost per shot and per second', () => {
       ['S', null, null],
     ]);
     expect(cost.inventoryLines.find((l) => l.name === 'A')).toMatchObject({ perShot: 1.6, perSec: 2 });
+  });
+});
+
+describe('assortments', () => {
+  const pack: Assortment = { id: 'pk', name: 'Party Pack', brand: '', cost: 100, notes: '', url: '' };
+  const members = () => [
+    cake('A', { assortmentId: 'pk', shots: 30, durationSec: 30, unitCost: 999 }),
+    cake('B', { assortmentId: 'pk', shots: 10, durationSec: 10, assortmentQty: 2 }),
+    cake('C', { shots: 20, durationSec: 20 }),
+  ];
+
+  it('prices cost per shot and per second across the whole assortment', () => {
+    const ctx = { catalog: members(), assortments: [pack] };
+    // 30 + 2 × 10 = 50 shots and 50 s for $100
+    expect(assortmentStats(pack, ctx.catalog)).toMatchObject({ pieces: 3, shots: 50, durationSec: 50, perShot: 2, perSec: 2 });
+    const [a, b, c] = ctx.catalog;
+    expect(costPerShot(a, ctx)).toBe(2);
+    expect(costPerSecond(b, ctx)).toBe(2);
+    // Each cake's cost is its share of the price, by shots; its own cost is ignored
+    expect(itemUnitCost(a, ctx)).toBe(60);
+    expect(itemUnitCost(b, ctx)).toBe(20);
+    // Cakes bought alone, or without the context, keep their own price
+    expect(itemUnitCost(c, ctx)).toBe(40);
+    expect(itemUnitCost(a)).toBe(999);
+    // A missing assortment falls back to the cake's own price
+    expect(itemUnitCost(a, { ...ctx, assortments: [] })).toBe(999);
+  });
+
+  it('includes compound sub cakes and splits evenly when no shots are entered', () => {
+    const compound = cake('X', { assortmentId: 'pk', subCakes: [sub('s1', 10, 0, 5), sub('s2', 30, 5, 10)] });
+    const ctx = { catalog: [normalizeCake(compound), cake('Y', { assortmentId: 'pk', shots: 10 })], assortments: [pack] };
+    expect(costPerShot(ctx.catalog[0], ctx)).toBe(2);
+    expect(itemUnitCost(ctx.catalog[0], ctx)).toBe(80);
+    const empty = { catalog: [cake('P', { assortmentId: 'pk', shots: 0, durationSec: 0 }), cake('Q', { assortmentId: 'pk', shots: 0, durationSec: 0 })], assortments: [pack] };
+    expect(itemUnitCost(empty.catalog[0], empty)).toBe(50);
+    expect(costPerShot(empty.catalog[0], empty)).toBeNull();
+  });
+
+  it('flows into show cost and inventory value', () => {
+    const show = baseShow();
+    show.catalog = members();
+    show.assortments = [pack];
+    show.placed = [{ id: 'pA', catalogId: 'A', positionId: show.positions[0].id, x: 0, y: 0, label: '' }];
+    const cost = computeCost(show, computeTotals(show));
+    expect(cost.lines[0]).toMatchObject({ name: 'A', unitCost: 60, total: 60, perShot: 2, perSec: 2 });
+    expect(cost.lines[0].detail).toContain('from Party Pack');
+    // 5 owned each: A 5 × 60, B 5 × 20, C 5 × 40
+    expect(cost.inventoryValue).toBe(600);
+  });
+
+  it('loads older show files without assortments', () => {
+    const raw = JSON.parse(JSON.stringify(baseShow()));
+    delete raw.assortments;
+    for (const c of raw.catalog) {
+      delete c.assortmentId;
+      delete c.assortmentQty;
+    }
+    const show = parseShow(raw);
+    expect(show.assortments).toEqual([]);
+    const loaded = show.catalog.find((c) => c.kind === 'cake') as Cake;
+    expect(loaded).toMatchObject({ assortmentId: null, assortmentQty: 1 });
   });
 });
 

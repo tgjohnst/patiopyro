@@ -1,9 +1,10 @@
 import { pinAddress } from '../model/addressing';
-import { normalizeCake, tubeCount } from '../model/catalog';
+import { itemUnitCost, normalizeCake, tubeCount } from '../model/catalog';
 import { MAX_POSITIONS, newPosition, uid } from '../model/defaults';
 import { endpointPlacedId, inKey, nodeKey, outKey, tubeKey } from '../model/endpoints';
 import { controllerFromPreset, presetById, type ModuleModel } from '../model/presets';
 import type {
+  Assortment,
   CatalogItem,
   Controller,
   FiringModule,
@@ -112,6 +113,30 @@ export function deleteCatalogItem(id: string) {
     for (const p of s.placed) {
       if (p.tubes) p.tubes = p.tubes.map((t) => (t === id ? null : t));
     }
+  });
+}
+
+// ---------- assortments ----------
+
+export function upsertAssortment(a: Assortment) {
+  mutate((s) => {
+    const i = s.assortments.findIndex((x) => x.id === a.id);
+    if (i >= 0) s.assortments[i] = a;
+    else s.assortments.push(a);
+  });
+}
+
+/** Removes the assortment; its cakes keep their share of its price as their own cost. */
+export function deleteAssortment(id: string) {
+  mutate((s) => {
+    const shares = new Map(s.catalog.map((c) => [c.id, itemUnitCost(c, s)]));
+    for (const c of s.catalog) {
+      if (c.kind !== 'cake' || c.assortmentId !== id) continue;
+      c.unitCost = Math.round((shares.get(c.id) ?? 0) * 100) / 100;
+      c.assortmentId = null;
+      c.assortmentQty = 1;
+    }
+    s.assortments = s.assortments.filter((a) => a.id !== id);
   });
 }
 

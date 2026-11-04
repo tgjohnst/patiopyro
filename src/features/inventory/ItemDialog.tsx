@@ -4,6 +4,9 @@ import { Button, Checkbox, Field, Modal, NumberInput, Select, TextInput } from '
 import {
   CATEGORY_CLASS,
   KIND_LABEL,
+  assortmentStats,
+  cakeAssortment,
+  itemUnitCost,
   PIECE_NOUNS,
   costPerSecond,
   costPerShot,
@@ -15,14 +18,17 @@ import {
   subCakeEndSec,
   tubeCount,
   type CakeCategory,
+  type PricingContext,
 } from '../../model/catalog';
 import { CAKE_CATEGORIES, CAKE_WEIGHT_CLASSES } from '../../model/constants';
 import { uid } from '../../model/defaults';
 import type { Cake, Candle, CatalogItem, Rack, Rocket, Shell, SubCake } from '../../model/schema';
 import { upsertCatalogItem } from '../../store/actions';
+import { useShow } from '../../store/showStore';
 import { formatMoney } from '../../lib/format';
 
-export function newCatalogItem(kind: CatalogItem['kind']): CatalogItem {
+/** A blank item of the given kind. Cakes can start out tagged with an assortment. */
+export function newCatalogItem(kind: CatalogItem['kind'], opts: { assortmentId?: string } = {}): CatalogItem {
   const base = { id: uid('cat'), name: '', qtyOwned: 1, notes: '', url: '' };
   switch (kind) {
     case 'cake':
@@ -40,6 +46,8 @@ export function newCatalogItem(kind: CatalogItem['kind']): CatalogItem {
         weightClass: null,
         categories: [],
         subCakes: [],
+        assortmentId: opts.assortmentId ?? null,
+        assortmentQty: 1,
       } satisfies Cake;
     case 'shell':
       return {
@@ -91,9 +99,9 @@ export function newCatalogItem(kind: CatalogItem['kind']): CatalogItem {
 
 type Patch = Partial<Cake> | Partial<Shell> | Partial<Rocket> | Partial<Candle> | Partial<Rack>;
 
-function costHint(item: CatalogItem): string | undefined {
-  const shot = costPerShot(item);
-  const sec = costPerSecond(item);
+function costHint(item: CatalogItem, ctx?: PricingContext): string | undefined {
+  const shot = costPerShot(item, ctx);
+  const sec = costPerSecond(item, ctx);
   const parts = [shot !== null && `${formatMoney(shot)} per shot`, sec !== null && `${formatMoney(sec)} per second`];
   return parts.filter(Boolean).join(' · ') || undefined;
 }
@@ -254,6 +262,56 @@ function SubCakesEditor({ cake, onChange }: { cake: Cake; onChange: (subCakes: S
   );
 }
 
+/** Own price, or the assortment the cake came in (which then sets its cost). */
+function CakeCostFields({ cake, ctx, set }: { cake: Cake; ctx: PricingContext; set: (patch: Partial<Cake>) => void }) {
+  const draft = normalizeCake(cake);
+  const assortment = cakeAssortment(draft, ctx);
+  const stats = assortment && assortmentStats(assortment, ctx.catalog.filter((c) => c.id !== cake.id).concat(draft));
+  return (
+    <>
+      <Field
+        label="Assortment"
+        hint={ctx.assortments.length ? undefined : 'Add one with + Assortment'}
+        className="col-span-2 md:col-span-1"
+      >
+        <Select
+          value={assortment?.id ?? ''}
+          onChange={(v) => set({ assortmentId: v || null })}
+          options={[{ value: '', label: 'None (bought alone)' }, ...ctx.assortments.map((a) => ({ value: a.id, label: a.name }))]}
+        />
+      </Field>
+      {assortment && stats ? (
+        <>
+          <Field label="Per assortment" hint="Of this cake in one assortment">
+            <NumberInput
+              integer
+              min={1}
+              value={cake.assortmentQty}
+              onChange={(assortmentQty) => set({ assortmentQty: Math.max(1, assortmentQty) })}
+            />
+          </Field>
+          <Field
+            label="Cost (share)"
+            hint={[
+              `${formatMoney(assortment.cost)} over ${stats.shots} shots in ${assortment.name}`,
+              costHint(draft, ctx),
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+            className="col-span-2 md:col-span-2"
+          >
+            <NumberInput min={0} suffix="$" disabled value={Math.round(itemUnitCost(draft, ctx) * 100) / 100} onChange={() => {}} />
+          </Field>
+        </>
+      ) : (
+        <Field label="Cost (each)" hint={costHint(draft)}>
+          <NumberInput min={0} suffix="$" value={cake.unitCost} onChange={(unitCost) => set({ unitCost })} />
+        </Field>
+      )}
+    </>
+  );
+}
+
 /** Per-piece or case/pack pricing shared by shells, rockets and roman candles. */
 function PackPricingFields({
   item,
@@ -328,6 +386,9 @@ function PackPricingFields({
 
 export function ItemDialog({ initial, onClose }: { initial: CatalogItem; onClose: () => void }) {
   const [item, setItem] = useState<CatalogItem>(initial);
+  const catalog = useShow((s) => s.catalog);
+  const assortments = useShow((s) => s.assortments);
+  const ctx: PricingContext = { catalog, assortments };
   const set = (patch: Patch) => setItem((i) => ({ ...i, ...patch }) as CatalogItem);
   const kindLabel = KIND_LABEL[item.kind].toLowerCase();
   const title = `${initial.name ? 'Edit' : 'New'} ${kindLabel}`;
@@ -414,9 +475,7 @@ export function ItemDialog({ initial, onClose }: { initial: CatalogItem; onClose
             <Field label="Lead fuse delay" hint="Light to first shot">
               <NumberInput min={0} suffix="s" value={item.leadDelaySec} onChange={(leadDelaySec) => set({ leadDelaySec })} />
             </Field>
-            <Field label="Cost (each)" hint={costHint(normalizeCake(item))}>
-              <NumberInput min={0} suffix="$" value={item.unitCost} onChange={(unitCost) => set({ unitCost })} />
-            </Field>
+            <CakeCostFields cake={item} ctx={ctx} set={set} />
             <Field label="Effect notes" className="col-span-2 md:col-span-3">
               <TextInput value={item.effectNotes} onChange={(effectNotes) => set({ effectNotes })} />
             </Field>

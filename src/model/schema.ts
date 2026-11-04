@@ -46,6 +46,24 @@ export const cakeSchema = z.object({
   categories: z.array(z.enum(CAKE_CATEGORIES)).default([]),
   /** Non-empty for compound cakes: the fused sections, each broken out. */
   subCakes: z.array(subCakeSchema).default([]),
+  /** Assortment this cake came in; its cost then comes from the assortment (see itemUnitCost). */
+  assortmentId: z.string().nullable().default(null),
+  /** How many of this cake come in one assortment. */
+  assortmentQty: z.number().int().min(1).default(1),
+});
+
+/**
+ * A pack of cakes bought together for one price. Shots and duration come from the
+ * member cakes, so cost per shot and per second are worked out across the whole pack.
+ */
+export const assortmentSchema = z.object({
+  id,
+  name: z.string(),
+  brand: z.string().default(''),
+  /** Price of one assortment. */
+  cost: nonNeg,
+  notes: z.string().default(''),
+  url: z.string().default(''),
 });
 
 export const shellPricingSchema = z.discriminatedUnion('mode', [
@@ -240,6 +258,7 @@ export const showSchema = z.object({
   }),
   settings: settingsSchema,
   catalog: z.array(catalogItemSchema),
+  assortments: z.array(assortmentSchema).default([]),
   fuseTypes: z.array(fuseTypeSchema),
   siteMap: siteMapSchema,
   positions: z.array(positionSchema).max(5),
@@ -254,6 +273,7 @@ export const showSchema = z.object({
 
 export type SubCake = z.infer<typeof subCakeSchema>;
 export type Cake = z.infer<typeof cakeSchema>;
+export type Assortment = z.infer<typeof assortmentSchema>;
 export type Rocket = z.infer<typeof rocketSchema>;
 export type Candle = z.infer<typeof candleSchema>;
 export type Shell = z.infer<typeof shellSchema>;

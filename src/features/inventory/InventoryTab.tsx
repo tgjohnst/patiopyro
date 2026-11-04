@@ -4,8 +4,11 @@ import { Badge, Button, NumberInput, Panel, TextInput } from '../../components/u
 import {
   CATEGORY_CLASS,
   PIECE_NOUNS,
+  assortmentStats,
+  cakeAssortment,
   costPerSecond,
   costPerShot,
+  itemUnitCost,
   safeHref,
   shellUnitCost,
   subCakeEndSec,
@@ -13,8 +16,9 @@ import {
   type TubeItem,
 } from '../../model/catalog';
 import { uid } from '../../model/defaults';
-import type { Cake, CatalogItem, FuseType } from '../../model/schema';
+import type { Assortment, Cake, CatalogItem, FuseType } from '../../model/schema';
 import {
+  deleteAssortment,
   deleteCatalogItem,
   deleteFuseType,
   updateSettings,
@@ -23,6 +27,7 @@ import {
 } from '../../store/actions';
 import { useDerived, useShow } from '../../store/showStore';
 import { formatMoney, formatTime } from '../../lib/format';
+import { AssortmentDialog, newAssortment } from './AssortmentDialog';
 import { ItemDialog, newCatalogItem } from './ItemDialog';
 
 function UseBadge({ used, owned }: { used: number; owned: number }) {
@@ -105,7 +110,7 @@ function CategoryLabels({ categories }: { categories: Cake['categories'] }) {
   );
 }
 
-function NameCell({ item, badge }: { item: CatalogItem; badge?: ReactNode }) {
+function NameCell({ item, badge }: { item: Pick<CatalogItem, 'name' | 'url'>; badge?: ReactNode }) {
   const href = safeHref(item.url);
   return (
     <td className={clsx(td, 'font-medium')}>
@@ -153,8 +158,11 @@ function PackUse({ item, used }: { item: TubeItem; used: number }) {
 
 export function InventoryTab() {
   const catalog = useShow((s) => s.catalog);
+  const assortments = useShow((s) => s.assortments);
+  const ctx = { catalog, assortments };
   const { totals } = useDerived();
   const [editing, setEditing] = useState<CatalogItem | null>(null);
+  const [editingAssortment, setEditingAssortment] = useState<Assortment | null>(null);
   const used = (id: string) => totals.inventory.find((u) => u.catalogId === id)?.used ?? 0;
 
   const cakes = catalog.filter((c) => c.kind === 'cake');
@@ -169,6 +177,9 @@ export function InventoryTab() {
     <div className="mx-auto flex max-w-7xl flex-col gap-4 p-4">
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="mr-auto text-lg font-semibold">Inventory</h1>
+        <Button variant="primary" onClick={() => setEditingAssortment(newAssortment())}>
+          + Assortment
+        </Button>
         <Button variant="primary" onClick={() => add('cake')}>
           + Cake
         </Button>
@@ -186,6 +197,51 @@ export function InventoryTab() {
         </Button>
       </div>
 
+      {assortments.length > 0 && (
+        <Panel title={`Assortments (${assortments.length})`}>
+          <Table head={['Name', 'Brand', 'Cost', 'Cakes', 'Shots', 'Duration', 'Cost / shot', 'Cost / sec', 'Notes', '']}>
+            {assortments.map((a) => {
+              const st = assortmentStats(a, catalog);
+              return (
+                <tr key={a.id} className="hover:bg-slate-800/30">
+                  <NameCell item={a} />
+                  <td className={td}>{a.brand}</td>
+                  <td className={td}>{formatMoney(a.cost)}</td>
+                  <td className={td} title={st.cakes.map((c) => `${c.assortmentQty}× ${c.name}`).join('\n') || undefined}>
+                    {st.pieces}
+                  </td>
+                  <td className={td}>{st.shots}</td>
+                  <td className={td}>{formatTime(st.durationSec, 0)}</td>
+                  <td className={td}>{money(st.perShot)}</td>
+                  <td className={td}>{money(st.perSec)}</td>
+                  <NotesCell notes={a.notes} />
+                  <td className="px-2 py-1 text-right whitespace-nowrap">
+                    <Button size="sm" variant="ghost" onClick={() => setEditing(newCatalogItem('cake', { assortmentId: a.id }))}>
+                      + Cake
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setEditingAssortment(a)}>
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-rose-300"
+                      onClick={() =>
+                        window.confirm(
+                          `Delete ${a.name}? Its cakes are kept, each priced at its share of the assortment cost.`,
+                        ) && deleteAssortment(a.id)
+                      }
+                    >
+                      Delete
+                    </Button>
+                  </td>
+                </tr>
+              );
+            })}
+          </Table>
+        </Panel>
+      )}
+
       <Panel title={`Cakes (${cakes.length})`}>
         {cakes.length === 0 ? (
           <p className="text-sm text-slate-500">No cakes yet.</p>
@@ -199,11 +255,19 @@ export function InventoryTab() {
                   <NameCell
                     item={c}
                     badge={
-                      c.subCakes.length > 0 && (
-                        <Badge tone="sky" className="ml-1.5">
-                          Compound ×{c.subCakes.length}
-                        </Badge>
-                      )
+                      <>
+                        {c.subCakes.length > 0 && (
+                          <Badge tone="sky" className="ml-1.5">
+                            Compound ×{c.subCakes.length}
+                          </Badge>
+                        )}
+                        {cakeAssortment(c, ctx) && (
+                          <Badge tone="amber" className="ml-1.5">
+                            {cakeAssortment(c, ctx)!.name}
+                            {c.assortmentQty > 1 && ` ×${c.assortmentQty}`}
+                          </Badge>
+                        )}
+                      </>
                     }
                   />
                   <td className={td}>{c.brand}</td>
@@ -218,9 +282,12 @@ export function InventoryTab() {
                   <td className={td}>{formatTime(c.durationSec, 0)}</td>
                   <td className={td}>{c.leadDelaySec}s</td>
                   <td className={td}>{c.hasExitFuse ? 'Yes' : '—'}</td>
-                  <td className={td}>{formatMoney(c.unitCost)}</td>
-                  <td className={td}>{money(costPerShot(c))}</td>
-                  <td className={td}>{money(costPerSecond(c))}</td>
+                  <td className={td} title={cakeAssortment(c, ctx) ? 'Share of the assortment cost' : undefined}>
+                    {formatMoney(itemUnitCost(c, ctx))}
+                    {cakeAssortment(c, ctx) && <span className="ml-1 text-xs text-slate-500">share</span>}
+                  </td>
+                  <td className={td}>{money(costPerShot(c, ctx))}</td>
+                  <td className={td}>{money(costPerSecond(c, ctx))}</td>
                   <td className={td}>
                     <UseBadge used={used(c.id)} owned={c.qtyOwned} />
                   </td>
@@ -351,6 +418,9 @@ export function InventoryTab() {
       <FuseLibrary />
 
       {editing && <ItemDialog initial={editing} onClose={() => setEditing(null)} />}
+      {editingAssortment && (
+        <AssortmentDialog initial={editingAssortment} onClose={() => setEditingAssortment(null)} />
+      )}
     </div>
   );
 }
