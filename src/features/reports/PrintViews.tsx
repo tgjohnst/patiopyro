@@ -1,6 +1,7 @@
 import { Fragment, useEffect } from 'react';
 import { buildPositionSheets, type RackSheet } from '../../engine/chains';
 import { buildCueList } from '../../engine/cues';
+import { sceneChangeAt } from '../../engine/scenes';
 import { positionLayout, type PositionLayout } from '../../engine/layout';
 import { formatLengthIn, formatTime } from '../../lib/format';
 import type { CatalogItem, PlacedItem, Show } from '../../model/schema';
@@ -635,8 +636,29 @@ export function ShowPlan() {
           {cues.map((c, i) => {
             const delta = deltas[i];
             const switchTo = c.district && cues[i - 1]?.district?.key !== c.district.key ? c.district : null;
+            const sceneChange = sceneChangeAt(show.scenes, cues, i);
             return (
               <Fragment key={c.addressId}>
+              {sceneChange !== undefined && (
+                <tr className="avoid-break" data-testid="plan-scene">
+                  <td
+                    colSpan={5}
+                    className="border-b-2 border-black pt-4 pb-1 pl-2 text-lg font-bold"
+                    style={sceneChange ? { borderLeft: `6px solid ${sceneChange.color}` } : undefined}
+                  >
+                    {sceneChange ? (
+                      <>
+                        {sceneChange.name}{' '}
+                        <span className="text-sm font-normal text-gray-600">
+                          {formatTime(sceneChange.startSec)}–{formatTime(sceneChange.endSec)}
+                        </span>
+                      </>
+                    ) : (
+                      'No scene'
+                    )}
+                  </td>
+                </tr>
+              )}
               {switchTo && (
                 <tr className="avoid-break">
                   <td />

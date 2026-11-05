@@ -2,13 +2,27 @@ import clsx from 'clsx';
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { Badge, Button, EmptyState, Field, NumberInput, Select, TextInput } from '../../components/ui';
 import { buildCueList, type CueEntry } from '../../engine/cues';
+import { MIN_SCENE_SEC, clampSceneRange, moveSceneIn, sceneAt, sceneGap, sceneRangeForCues } from '../../engine/scenes';
 import { computeTiming, type EffectTiming } from '../../engine/timing';
 import { formatTime } from '../../lib/format';
-import { moveAddressPins, setCueNote, setCueTime, setCueTimes, updateSettings } from '../../store/actions';
+import type { Show } from '../../model/schema';
+import {
+  addScene,
+  moveAddressPins,
+  moveScene,
+  removeScene,
+  setCueNote,
+  setCueTime,
+  setCueTimes,
+  setSceneRange,
+  updateScene,
+  updateSettings,
+} from '../../store/actions';
 import { useShow } from '../../store/showStore';
 
 const HEADER_W = 200;
 const RULER_H = 30;
+const SCENE_STRIP_H = 26;
 const LANE_H = 14;
 const ROW_PAD = 8;
 /** Gutter before 0:00 so markers at the start aren't clipped. */
@@ -51,6 +65,39 @@ interface DragState {
   moved: boolean;
 }
 
+interface SceneDrag {
+  /** move: whole scene with its cues; start/end: an edge; draw: a new scene on the strip. */
+  mode: 'move' | 'start' | 'end' | 'draw';
+  sceneId: string | null;
+  startX: number;
+  /** Draw only: the time the pointer went down. */
+  originSec: number;
+  dt: number;
+}
+
+/** The span a start or end edge drag gives its scene. */
+function resizedRange(show: Show, d: SceneDrag) {
+  const s = show.scenes.find((x) => x.id === d.sceneId);
+  if (!s) return null;
+  return d.mode === 'start'
+    ? clampSceneRange(show.scenes, s.id, s.startSec + d.dt, s.endSec)
+    : clampSceneRange(show.scenes, s.id, s.startSec, s.endSec + d.dt);
+}
+
+/** The new scene a draw drag has marked out, kept inside the empty stretch it started in. */
+function drawnRange(show: Show, d: SceneDrag, snap: number) {
+  const { lo, hi } = sceneGap(show.scenes, d.originSec);
+  const bound = (t: number) => Math.min(hi, Math.max(lo, t));
+  const anchor = bound(snapTo(d.originSec, snap));
+  const other = bound(anchor + d.dt);
+  return { startSec: Math.min(anchor, other), endSec: Math.max(anchor, other) };
+}
+
+/** Round to the snap grid, without float noise like 10.600000000000001. */
+function snapTo(t: number, snap: number) {
+  return Math.round((Math.round(t / snap) * snap) * 1000) / 1000;
+}
+
 function isTyping(e: KeyboardEvent) {
   const t = e.target as HTMLElement | null;
   return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT');
@@ -62,7 +109,9 @@ export function TimelineTab() {
   const [pps, setPps] = useState(14);
   const [groupBy, setGroupBy] = useState<'cue' | 'position'>('cue');
   const [selected, setSelected] = useState<string[]>([]);
+  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
+  const [sceneDrag, setSceneDrag] = useState<SceneDrag | null>(null);
   const [playhead, setPlayhead] = useState(0);
   const [playing, setPlaying] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -70,11 +119,16 @@ export function TimelineTab() {
 
   // Live preview while dragging: recompute timing with the dragged cue times.
   const preview = useMemo(() => {
+    if (sceneDrag?.sceneId && sceneDrag.dt !== 0) {
+      if (sceneDrag.mode === 'move') return { ...show, ...moveSceneIn(show, sceneDrag.sceneId, sceneDrag.dt) };
+      const range = resizedRange(show, sceneDrag);
+      return { ...show, scenes: show.scenes.map((s) => (s.id === sceneDrag.sceneId ? { ...s, ...range } : s)) };
+    }
     if (!drag || drag.dt === 0) return show;
     const cueTimes = { ...show.cueTimes };
     for (const a of drag.addrs) cueTimes[a] = Math.max(0, drag.orig[a] + drag.dt);
     return { ...show, cueTimes };
-  }, [show, drag]);
+  }, [show, drag, sceneDrag]);
   const timing = useMemo(() => computeTiming(preview), [preview]);
   const cues = useMemo(() => buildCueList(preview, timing), [preview, timing]);
 
@@ -117,7 +171,8 @@ export function TimelineTab() {
   }, [groupBy, cues, timing, preview.positions]);
 
   const maxCue = cues.reduce((m, c) => Math.max(m, c.time ?? 0), 0);
-  const duration = Math.max(90, Math.ceil(Math.max(timing.showEndSec, maxCue) / 10) * 10 + 30);
+  const maxScene = preview.scenes.reduce((m, s) => Math.max(m, s.endSec), 0);
+  const duration = Math.max(90, Math.ceil(Math.max(timing.showEndSec, maxCue, maxScene) / 10) * 10 + 30);
   const width = duration * pps + GUTTER * 2;
   const x = (t: number) => GUTTER + t * pps;
   const w = (dt: number) => dt * pps;
@@ -153,22 +208,68 @@ export function TimelineTab() {
     }
   });
 
-  // Keyboard: space = play/pause, arrows nudge selected cues
+  // Keyboard: space = play/pause, arrows nudge the selected scene or cues
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isTyping(e)) return;
       if (e.code === 'Space') {
         e.preventDefault();
         setPlaying((p) => !p);
-      } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && selected.length) {
+      } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && (selected.length || selectedSceneId)) {
         e.preventDefault();
         const d = (e.key === 'ArrowLeft' ? -1 : 1) * snap * (e.shiftKey ? 10 : 1);
-        setCueTimes(Object.fromEntries(selected.map((a) => [a, (show.cueTimes[a] ?? 0) + d])));
+        if (selectedSceneId) moveScene(selectedSceneId, d);
+        else setCueTimes(Object.fromEntries(selected.map((a) => [a, (show.cueTimes[a] ?? 0) + d])));
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selected, snap, show.cueTimes]);
+  }, [selected, selectedSceneId, snap, show.cueTimes]);
+
+  // Dragging on the scene strip
+  useEffect(() => {
+    if (!sceneDrag) return;
+    const onMove = (e: PointerEvent) => {
+      const dt = snapTo((e.clientX - sceneDrag.startX) / pps, snap);
+      if (dt !== sceneDrag.dt) setSceneDrag({ ...sceneDrag, dt });
+    };
+    const onUp = () => {
+      if (sceneDrag.mode === 'draw') {
+        const { startSec, endSec } = drawnRange(show, sceneDrag, snap);
+        if (endSec - startSec >= MIN_SCENE_SEC) setSelectedSceneId(addScene(startSec, endSec));
+      } else if (sceneDrag.sceneId && sceneDrag.dt !== 0) {
+        if (sceneDrag.mode === 'move') {
+          moveScene(sceneDrag.sceneId, sceneDrag.dt);
+        } else {
+          const range = resizedRange(show, sceneDrag);
+          if (range) setSceneRange(sceneDrag.sceneId, range.startSec, range.endSec);
+        }
+      }
+      setSceneDrag(null);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [sceneDrag, pps, snap, show]);
+
+  const beginSceneDrag = (e: ReactPointerEvent, sceneId: string, mode: 'move' | 'start' | 'end') => {
+    e.stopPropagation();
+    setSelected([]);
+    setSelectedSceneId(sceneId);
+    setSceneDrag({ mode, sceneId, startX: e.clientX, originSec: 0, dt: 0 });
+  };
+
+  const beginSceneDraw = (e: ReactPointerEvent) => {
+    e.stopPropagation();
+    setSelected([]);
+    setSelectedSceneId(null);
+    const left = (e.currentTarget as HTMLElement).getBoundingClientRect().left;
+    const originSec = Math.max(0, (e.clientX - left - GUTTER) / pps);
+    setSceneDrag({ mode: 'draw', sceneId: null, startX: e.clientX, originSec, dt: 0 });
+  };
 
   // Dragging cues
   useEffect(() => {
@@ -220,6 +321,7 @@ export function TimelineTab() {
   const beginDrag = (e: ReactPointerEvent, addr: string) => {
     e.preventDefault();
     e.stopPropagation();
+    setSelectedSceneId(null);
     let sel = selected;
     if (e.shiftKey || e.metaKey || e.ctrlKey) {
       sel = selected.includes(addr) ? selected.filter((a) => a !== addr) : [...selected, addr];
@@ -243,6 +345,10 @@ export function TimelineTab() {
   const ticks = Array.from({ length: Math.floor(duration / tickStep) + 1 }, (_, i) => i * tickStep);
   const colorOf = (posId: string) => preview.positions.find((p) => p.id === posId)?.color ?? '#64748b';
   const selectedCue = selected.length === 1 ? cues.find((c) => c.addressId === selected[0]) : null;
+  const selectedScene = preview.scenes.find((s) => s.id === selectedSceneId) ?? null;
+  const sceneCues = selectedScene ? cues.filter((c) => sceneAt([selectedScene], c.time)) : [];
+  const newSceneRange = selected.length ? sceneRangeForCues(show, timing, selected) : null;
+  const draftScene = sceneDrag?.mode === 'draw' && sceneDrag.dt !== 0 ? drawnRange(show, sceneDrag, snap) : null;
 
   if (cues.length === 0) {
     return (
@@ -299,6 +405,23 @@ export function TimelineTab() {
             className="mt-2 w-40 accent-amber-500"
           />
         </Field>
+        <Button
+          disabled={!newSceneRange}
+          title={
+            selected.length === 0
+              ? 'Select cues first, or drag across the Scenes strip to draw a scene'
+              : newSceneRange
+                ? 'Create a scene around the selected cues'
+                : 'Those cues overlap an existing scene'
+          }
+          onClick={() => {
+            if (!newSceneRange) return;
+            setSelectedSceneId(addScene(newSceneRange.startSec, newSceneRange.endSec));
+            setSelected([]);
+          }}
+        >
+          ＋ Scene from selection
+        </Button>
         <div className="mb-1 ml-auto flex flex-wrap gap-2 text-xs text-slate-400">
           <Badge>{cues.length} cues</Badge>
           <Badge>{timing.effects.length} effects</Badge>
@@ -315,7 +438,10 @@ export function TimelineTab() {
             setPps((p) => Math.max(3, Math.min(80, Math.round(p * (e.deltaY < 0 ? 1.15 : 0.87)))));
           }
         }}
-        onPointerDown={() => setSelected([])}
+        onPointerDown={() => {
+          setSelected([]);
+          setSelectedSceneId(null);
+        }}
         data-testid="timeline"
       >
         <div style={{ width: HEADER_W + width, minHeight: '100%' }} className="relative">
@@ -344,8 +470,71 @@ export function TimelineTab() {
             </div>
           </div>
 
+          {/* Scene strip */}
+          <div className="sticky z-20 flex" style={{ top: RULER_H, height: SCENE_STRIP_H }}>
+            <div
+              className="sticky left-0 z-30 flex items-center border-r border-b border-slate-800 bg-slate-950 px-3 text-xs text-slate-500"
+              style={{ width: HEADER_W, minWidth: HEADER_W }}
+            >
+              Scenes
+            </div>
+            <div
+              className="relative cursor-crosshair border-b border-slate-800 bg-slate-950"
+              style={{ width }}
+              title="Drag here to draw a new scene"
+              onPointerDown={beginSceneDraw}
+              data-testid="scene-strip"
+            >
+              {preview.scenes.map((s) => (
+                <div
+                  key={s.id}
+                  className={clsx(
+                    'absolute top-0.5 bottom-0.5 cursor-grab overflow-hidden rounded-sm px-2 text-xs leading-[20px] font-semibold whitespace-nowrap text-white [text-shadow:0_1px_2px_rgb(0_0_0/0.8)]',
+                    selectedSceneId === s.id && 'outline outline-2 outline-amber-300',
+                  )}
+                  style={{ left: x(s.startSec), width: w(s.endSec - s.startSec), background: s.color }}
+                  title={`${s.name} · ${formatTime(s.startSec)}–${formatTime(s.endSec)}\nDrag to move it with its cues, drag an edge to resize, double-click to rename`}
+                  onPointerDown={(e) => beginSceneDrag(e, s.id, 'move')}
+                  onDoubleClick={() => document.getElementById('scene-name')?.focus()}
+                  data-testid={`scene-${s.name}`}
+                >
+                  {s.name}
+                  <div
+                    className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize"
+                    onPointerDown={(e) => beginSceneDrag(e, s.id, 'start')}
+                    data-testid={`scene-${s.name}-start`}
+                  />
+                  <div
+                    className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize"
+                    onPointerDown={(e) => beginSceneDrag(e, s.id, 'end')}
+                    data-testid={`scene-${s.name}-end`}
+                  />
+                </div>
+              ))}
+              {draftScene && (
+                <div
+                  className="pointer-events-none absolute top-0.5 bottom-0.5 rounded-sm border border-dashed border-amber-300 bg-amber-300/20"
+                  style={{ left: x(draftScene.startSec), width: w(draftScene.endSec - draftScene.startSec) }}
+                />
+              )}
+            </div>
+          </div>
+
           {/* Rows */}
           <div ref={rowsRef} className="relative">
+            {/* Scene bands, behind the rows */}
+            {preview.scenes.map((s) => (
+              <div
+                key={s.id}
+                className="pointer-events-none absolute top-0 h-full border-x"
+                style={{
+                  left: HEADER_W + x(s.startSec),
+                  width: w(s.endSec - s.startSec),
+                  background: `${s.color}33`,
+                  borderColor: `${s.color}aa`,
+                }}
+              />
+            ))}
             {rows.map((row) => {
               const isTarget = drag?.targetRow === row.id;
               const rowSelected = groupBy === 'cue' && selected.includes(row.id);
@@ -359,6 +548,7 @@ export function TimelineTab() {
                     style={{ width: HEADER_W, minWidth: HEADER_W, borderLeft: `3px solid ${row.color ?? 'transparent'}` }}
                     onPointerDown={(e) => {
                       e.stopPropagation();
+                      setSelectedSceneId(null);
                       if (groupBy === 'cue') setSelected([row.id]);
                     }}
                   >
@@ -453,11 +643,68 @@ export function TimelineTab() {
                 : `${drag.dt >= 0 ? '+' : ''}${drag.dt.toFixed(2)} s${drag.addrs.length === 1 ? ` → ${formatTime(Math.max(0, drag.orig[drag.addrs[0]] + drag.dt), 2)}` : ` (${drag.addrs.length} cues)`}`}
             </div>
           )}
+          {sceneDrag?.sceneId && sceneDrag.dt !== 0 && selectedScene && (
+            <div className="pointer-events-none fixed right-6 bottom-24 z-50 rounded-md bg-slate-800 px-3 py-1.5 text-sm text-amber-200 shadow-lg">
+              {selectedScene.name}: {formatTime(selectedScene.startSec)}–{formatTime(selectedScene.endSec)}
+              {sceneDrag.mode === 'move' && ` (${sceneCues.length} cues)`}
+            </div>
+          )}
         </div>
       </div>
 
       <div className="flex min-h-[92px] flex-wrap items-start gap-4 border-t border-slate-800 bg-slate-950 px-4 py-2 text-sm">
-        {selectedCue ? (
+        {selectedScene ? (
+          <div key={selectedScene.id} className="contents">
+            <Field label="Scene name" className="w-56">
+              <TextInput
+                id="scene-name"
+                value={selectedScene.name}
+                onChange={(name) => updateScene(selectedScene.id, { name })}
+                onFocus={(e) => e.target.select()}
+              />
+            </Field>
+            <Field label="Color">
+              <input
+                type="color"
+                aria-label="Scene color"
+                value={selectedScene.color}
+                onChange={(e) => updateScene(selectedScene.id, { color: e.target.value })}
+                className="h-8 w-12 cursor-pointer rounded border border-slate-700 bg-slate-900"
+              />
+            </Field>
+            <Field label="Start (s)" className="w-24">
+              <NumberInput
+                min={0}
+                value={selectedScene.startSec}
+                onChange={(t) => setSceneRange(selectedScene.id, t, selectedScene.endSec)}
+              />
+            </Field>
+            <Field label="End (s)" className="w-24">
+              <NumberInput
+                min={0}
+                value={selectedScene.endSec}
+                onChange={(t) => setSceneRange(selectedScene.id, selectedScene.startSec, t)}
+              />
+            </Field>
+            <div className="max-w-xl text-xs text-slate-400" data-testid="scene-cues">
+              <div className="mb-1 font-medium text-slate-300">
+                {sceneCues.length} {sceneCues.length === 1 ? 'cue' : 'cues'} in this scene
+              </div>
+              {sceneCues.map((c) => c.label).join(' · ') || 'Drag cues into this time range to add them.'}
+            </div>
+            <Button
+              variant="danger"
+              className="mt-4 ml-auto"
+              title="Delete the scene. Its cues stay where they are."
+              onClick={() => {
+                removeScene(selectedScene.id);
+                setSelectedSceneId(null);
+              }}
+            >
+              Remove scene
+            </Button>
+          </div>
+        ) : selectedCue ? (
           <>
             <div>
               <div className="font-semibold text-slate-100">{selectedCue.label}</div>
@@ -487,13 +734,15 @@ export function TimelineTab() {
           </>
         ) : selected.length > 1 ? (
           <p className="text-slate-400">
-            {selected.length} cues selected. Drag to move them together, or use ← → to nudge (Shift for 10×).
+            {selected.length} cues selected. Drag to move them together, use ← → to nudge (Shift for 10×), or
+            make them a scene.
           </p>
         ) : (
           <p className="text-xs text-slate-500">
             Drag a cue marker or effect bar to change its time. Shift-click selects several. By cue, drag
             onto another row to link module cues. Click the ruler to move the playhead. Space plays,
-            Ctrl+scroll zooms. Bar color = position.
+            Ctrl+scroll zooms. Bar color = position. Drag across the Scenes strip to draw a scene; any cue in
+            its time range belongs to it and moves with it. Drag a scene to move it, or its edges to resize.
           </p>
         )}
       </div>

@@ -47,6 +47,7 @@ There is no server. Your show autosaves in the browser, and you can save or open
   - Rows by cue or by position, showing effect bars for everything each cue fires.
   - Drag cues in time with snapping; shift-select to move several.
   - Drag onto another row to link cues.
+  - Scenes: colored, named sections of the timeline. Draw one on the Scenes strip or wrap selected cues. Any cue in a scene's time range belongs to it. Dragging a scene moves its cues with it and stops at the neighbouring scene; dragging an edge resizes it. Removing a scene leaves its cues in place. Scenes also appear in Show mode, the show plan and the `.xlsx` cue sheet.
   - Play/scrub playhead.
 - **Reports:**
   - Totals for fuse by type (with tie-in allowance, waste and rolls), igniters with spares, cues used vs. available, and module usage.

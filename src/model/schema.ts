@@ -276,6 +276,18 @@ export const settingsSchema = z.object({
   snapSec: z.number().positive(),
 });
 
+/**
+ * A named, colored stretch of the timeline. It holds every cue whose time falls in
+ * [startSec, endSec), and scenes never overlap (see engine/scenes.ts).
+ */
+export const sceneSchema = z.object({
+  id,
+  name: z.string(),
+  color: z.string(),
+  startSec: nonNeg,
+  endSec: nonNeg,
+});
+
 export const showSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
   meta: z.object({
@@ -299,6 +311,7 @@ export const showSchema = z.object({
   /** Address id -> fire time in seconds from show start. */
   cueTimes: z.record(z.string(), z.number()),
   cueNotes: z.record(z.string(), z.string()),
+  scenes: z.array(sceneSchema).default([]),
 });
 
 export type SubCake = z.infer<typeof subCakeSchema>;
@@ -322,6 +335,7 @@ export type Addressing = z.infer<typeof addressingSchema>;
 export type Controller = z.infer<typeof controllerSchema>;
 export type FiringModule = z.infer<typeof moduleSchema>;
 export type Settings = z.infer<typeof settingsSchema>;
+export type Scene = z.infer<typeof sceneSchema>;
 export type Show = z.infer<typeof showSchema>;
 
 /** Migrate older show files to the current schema, then validate. */

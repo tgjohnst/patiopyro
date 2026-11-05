@@ -180,3 +180,4 @@ export const DEFAULT_FUSE_TYPES: FuseType[] = [
 ];
 
 export const POSITION_COLORS = ['#f43f5e', '#3b82f6', '#eab308', '#10b981', '#a855f7'];
+export const SCENE_COLORS = ['#8b5cf6', '#0891b2', '#d97706', '#db2777', '#65a30d', '#4f46e5', '#0d9488', '#dc2626'];

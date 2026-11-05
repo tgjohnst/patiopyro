@@ -2,7 +2,7 @@ import { flatAddressId } from './addressing';
 import { normalizeCake } from './catalog';
 import { createEmptyShow, uid } from './defaults';
 import { inKey, nodeKey, outKey, tubeKey } from './endpoints';
-import { controllerFromPreset, presetById } from './presets';
+import { SCENE_COLORS, controllerFromPreset, presetById } from './presets';
 import type { Cake, Candle, FiringModule, Rack, Rocket, Shell, Show, SubCake } from './schema';
 
 const FAST = 'fuse-fast-visco';
@@ -287,6 +287,12 @@ export function createDemoShow(): Show {
     [flatAddressId(5)]: 125,
   };
   s.cueNotes = { [flatAddressId(5)]: 'Finale — both sides together' };
+  s.scenes = [
+    { id: uid('scene'), name: 'Opening', color: SCENE_COLORS[0], startSec: 0, endSec: 40 },
+    { id: uid('scene'), name: 'Build', color: SCENE_COLORS[1], startSec: 42, endSec: 90 },
+    { id: uid('scene'), name: 'Crescendo', color: SCENE_COLORS[2], startSec: 98, endSec: 120 },
+    { id: uid('scene'), name: 'Finale', color: SCENE_COLORS[3], startSec: 125, endSec: 150 },
+  ];
 
   const supply = (name: string, qtyNeeded: number, qtyOwned: number, unitCost: number, notes = '') =>
     s.supplies.push({ id: uid('supply'), name, qtyNeeded, qtyOwned, unitCost, notes, url: '' });

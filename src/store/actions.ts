@@ -12,11 +12,13 @@ import type {
   FuseType,
   PlacedItem,
   Position,
+  Scene,
   Settings,
   Show,
   SiteMap,
   Supply,
 } from '../model/schema';
+import { clampSceneRange, moveSceneIn, nextSceneColor, nextSceneName } from '../engine/scenes';
 import { mutate } from './showStore';
 
 // ---------- helpers (operate on drafts) ----------
@@ -621,5 +623,42 @@ export function moveAddressPins(from: string, to: string) {
     if (s.cueTimes[to] === undefined && s.cueTimes[from] !== undefined) {
       s.cueTimes[to] = s.cueTimes[from];
     }
+  });
+}
+
+// ---------- scenes ----------
+
+export function addScene(startSec: number, endSec: number) {
+  const id = uid('scene');
+  mutate((s) => {
+    s.scenes.push({ id, name: nextSceneName(s.scenes), color: nextSceneColor(s.scenes), startSec, endSec });
+  });
+  return id;
+}
+
+export function updateScene(id: string, patch: Partial<Pick<Scene, 'name' | 'color'>>) {
+  mutate((s) => {
+    const scene = s.scenes.find((x) => x.id === id);
+    if (scene) Object.assign(scene, patch);
+  });
+}
+
+/** Change a scene's span. Its cues stay put, so cues can enter or leave it. */
+export function setSceneRange(id: string, startSec: number, endSec: number) {
+  mutate((s) => {
+    const scene = s.scenes.find((x) => x.id === id);
+    if (scene) Object.assign(scene, clampSceneRange(s.scenes, id, startSec, endSec));
+  });
+}
+
+/** Move a scene along with its cues. */
+export function moveScene(id: string, dt: number) {
+  mutate((s) => void Object.assign(s, moveSceneIn(s, id, dt)));
+}
+
+/** Delete a scene. Its cues keep their times. */
+export function removeScene(id: string) {
+  mutate((s) => {
+    s.scenes = s.scenes.filter((x) => x.id !== id);
   });
 }

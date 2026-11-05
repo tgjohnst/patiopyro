@@ -1,5 +1,7 @@
 import type * as XLSXTypes from 'xlsx';
 import { buildCueList } from '../../engine/cues';
+import { sceneAt } from '../../engine/scenes';
+import type { TimingResult } from '../../engine/timing';
 import { downloadBlob, safeFilename } from '../../lib/file';
 import { formatTime } from '../../lib/format';
 import { KIND_LABEL, costPerSecond, costPerShot, effectDurationSec, isFuseable, isTubeLoadable, itemUnitCost } from '../../model/catalog';
@@ -28,6 +30,24 @@ export function costRows(show: Show, d: Derived) {
   rows.push([]);
   for (const s of d.cost.subtotals) rows.push(['Subtotal', s.category, '', '', '', '', '', '', '', s.total]);
   rows.push(['TOTAL', show.meta.name, '', '', '', '', '', '', '', d.cost.total]);
+  return rows;
+}
+
+export function cueRows(show: Show, timing: TimingResult) {
+  const rows: (string | number)[][] = [['Time', 'Seconds', 'Cue', 'Scene', 'District', 'Module cues', 'Positions', 'Fires', 'Note']];
+  for (const c of buildCueList(show, timing)) {
+    rows.push([
+      c.time === null ? '—' : formatTime(c.time),
+      c.time ?? '',
+      c.label,
+      sceneAt(show.scenes, c.time)?.name ?? '',
+      c.district?.label ?? '',
+      c.pins.map((p) => `${p.moduleName} #${p.pin}`).join(', '),
+      c.positionIds.map((id) => show.positions.find((p) => p.id === id)?.name).join(', '),
+      c.effects.map((e) => e.name + (e.tubeIndex !== null ? ` #${e.tubeIndex + 1}` : '')).join(', '),
+      c.note,
+    ]);
+  }
   return rows;
 }
 
@@ -150,21 +170,8 @@ export async function exportCostXlsx(show: Show, d: Derived) {
   moneyCols(XLSX, fuse, [6, 7], 1);
   XLSX.utils.book_append_sheet(wb, fuse, 'Fuse & igniters');
 
-  const cueRows: (string | number)[][] = [['Time', 'Seconds', 'Cue', 'District', 'Module cues', 'Positions', 'Fires', 'Note']];
-  for (const c of buildCueList(show, d.timing)) {
-    cueRows.push([
-      c.time === null ? '—' : formatTime(c.time),
-      c.time ?? '',
-      c.label,
-      c.district?.label ?? '',
-      c.pins.map((p) => `${p.moduleName} #${p.pin}`).join(', '),
-      c.positionIds.map((id) => show.positions.find((p) => p.id === id)?.name).join(', '),
-      c.effects.map((e) => e.name + (e.tubeIndex !== null ? ` #${e.tubeIndex + 1}` : '')).join(', '),
-      c.note,
-    ]);
-  }
-  const cues = XLSX.utils.aoa_to_sheet(cueRows);
-  cues['!cols'] = [{ wch: 8 }, { wch: 8 }, { wch: 18 }, { wch: 12 }, { wch: 20 }, { wch: 18 }, { wch: 60 }, { wch: 30 }];
+  const cues = XLSX.utils.aoa_to_sheet(cueRows(show, d.timing));
+  cues['!cols'] = [{ wch: 8 }, { wch: 8 }, { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 20 }, { wch: 18 }, { wch: 60 }, { wch: 30 }];
   XLSX.utils.book_append_sheet(wb, cues, 'Cues');
 
   XLSX.writeFile(wb, safeFilename(`${show.meta.name} cost`, 'xlsx'));

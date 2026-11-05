@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '../../components/ui';
 import { buildCueList, type CueEntry } from '../../engine/cues';
+import { sceneAt, sceneChangeAt } from '../../engine/scenes';
 import type { EffectTiming } from '../../engine/timing';
 import { formatTime } from '../../lib/format';
 import { districtColor, parseAddress, type District } from '../../model/addressing';
@@ -91,6 +92,8 @@ export function ShowMode() {
   const hasDistricts = cues.some((c) => c.district);
   const remoteOn = current?.district ?? null;
   const needSwitch = !!next?.district && current?.district?.key !== next.district.key;
+  const sceneNow = sceneAt(show.scenes, elapsed);
+  const nextScene = next ? sceneAt(show.scenes, next.time) : null;
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col bg-black text-white" data-testid="show-mode">
@@ -127,6 +130,16 @@ export function ShowMode() {
             <div className="font-mono text-6xl text-slate-300 tabular-nums" data-testid="show-clock">
               {elapsed < 0 ? `T${formatTime(elapsed)}` : formatTime(elapsed)}
             </div>
+            {show.scenes.length > 0 && (
+              <div
+                className="rounded-2xl border-4 px-5 py-2 text-center"
+                style={{ borderColor: sceneNow?.color ?? '#475569' }}
+                data-testid="current-scene"
+              >
+                <div className="text-xs tracking-widest text-slate-400 uppercase">Scene</div>
+                <div className="text-3xl font-black">{sceneNow?.name ?? '—'}</div>
+              </div>
+            )}
             {hasDistricts && <RemoteDistrict district={remoteOn} />}
           </div>
 
@@ -144,6 +157,11 @@ export function ShowMode() {
               <div className="mt-2 text-2xl text-slate-200">{posNames(next.positionIds)}</div>
               <div className="text-lg text-slate-400">{[...new Set(next.effects.map((e) => e.name))].join(', ')}</div>
               {next.note && <div className="mt-2 text-2xl font-semibold text-amber-300">{next.note}</div>}
+              {nextScene && nextScene.id !== sceneNow?.id && (
+                <div className="mt-2 text-2xl font-semibold" data-testid="next-scene">
+                  Starts scene: {nextScene.name}
+                </div>
+              )}
               {next.district &&
                 (needSwitch ? (
                   <div
@@ -183,8 +201,18 @@ export function ShowMode() {
             const past = c.time <= elapsed;
             const color = c.district ? districtColor(c.district) : undefined;
             const switchHere = c.district && cues[i - 1]?.district?.key !== c.district.key;
+            const sceneChange = sceneChangeAt(show.scenes, cues, i);
             return (
               <Fragment key={c.addressId}>
+                {sceneChange !== undefined && (
+                  <li
+                    className={clsx('bg-slate-900 px-4 py-1 text-sm font-bold text-slate-100', past && 'opacity-50')}
+                    style={sceneChange ? { borderLeft: `8px solid ${sceneChange.color}` } : undefined}
+                    data-testid="list-scene"
+                  >
+                    {sceneChange?.name ?? 'No scene'}
+                  </li>
+                )}
                 {switchHere && (
                   <li
                     className={clsx('border-y bg-slate-950 px-4 py-1 text-xs font-bold tracking-wider uppercase', past && 'opacity-50')}
