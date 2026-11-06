@@ -20,13 +20,14 @@ test('demo show: layout, fuse, timeline, reports and exports', async ({ page }) 
   await expect(page.getByRole('row', { name: /^Night Owl/ })).toContainText('$1.80'); // $45 / 25 shots
   const owlRow = page.getByRole('row', { name: /^Night Owl/ });
   await expect(owlRow.getByTestId('cake-tags')).toHaveText('Big breaks');
-  await expect(owlRow.getByTestId('cake-effects')).toHaveText('CrackleGolden');
+  await expect(owlRow.getByTestId('cake-effects')).toHaveText('Crackle');
+  await expect(owlRow.getByTestId('cake-colors')).toHaveText('Golden');
   const [invXlsx] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: '⬇ Export .xlsx' }).click()]);
   expect(invXlsx.suggestedFilename()).toBe('Backyard-Fourth-demo-inventory.xlsx');
   const [invCsv] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: '⬇ .csv' }).click()]);
   const invText = (await readFile((await invCsv.path())!)).toString();
   expect(invText).toContain('\n\nAssortments\n');
-  expect(invText).toMatch(/^Night Owl,Demo Fireworks Co\.,1\.4G,500g,Big breaks,"Crackle, Golden",/m);
+  expect(invText).toMatch(/^Night Owl,Demo Fireworks Co\.,1\.4G,500g,Big breaks,Crackle,Golden,/m);
   await shot(page, '1-inventory');
 
   await page.getByRole('button', { name: 'Site Map', exact: true }).click();

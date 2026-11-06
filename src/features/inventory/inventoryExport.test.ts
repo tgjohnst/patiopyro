@@ -19,7 +19,8 @@ describe('inventory export', () => {
     const col = (name: string) => cakes.head.indexOf(name);
     const owl = cakes.rows.find((r) => r[0] === 'Night Owl')!;
     expect(owl[col('Tags')]).toBe('Big breaks');
-    expect(owl[col('Effects')]).toBe('Crackle, Golden');
+    expect(owl[col('Effects')]).toBe('Crackle');
+    expect(owl[col('Colors')]).toBe('Golden');
     expect(owl[col('Cost / shot')]).toBeCloseTo(1.8);
     expect(owl[col('Used')]).toBe(1);
     expect(sheets[1].rows.map((r) => r[1])).toEqual(['Ghost fans', 'Strobe crossfire', 'Golden willow']);
@@ -31,6 +32,6 @@ describe('inventory export', () => {
     expect(csv.startsWith('Cakes\nName,Brand,Grade,')).toBe(true);
     expect(csv).toContain('\n\nSupplies\nName,Needed,Owned,To buy,');
     expect(csv).toContain('"Plywood board, 36"" × 12"""');
-    expect(csv).toMatch(/^Night Owl,Demo Fireworks Co\.,1\.4G,500g,Big breaks,"Crackle, Golden",25,30,/m);
+    expect(csv).toMatch(/^Night Owl,Demo Fireworks Co\.,1\.4G,500g,Big breaks,Crackle,Golden,25,30,/m);
   });
 });

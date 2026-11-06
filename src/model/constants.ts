@@ -24,8 +24,6 @@ export const CAKE_EFFECTS = [
   'Comets',
   'Mines',
   'Ghost',
-  'Neon',
-  'Golden',
   'Dahlia',
   'Peony',
   'Chrysanthemum',
@@ -42,7 +40,12 @@ export const CAKE_EFFECTS = [
   'Horsetail',
   'Nishiki',
   'Salute',
+  'Spider',
+  'Chasers',
 ] as const;
+
+/** What color the shots are. */
+export const CAKE_COLORS = ['Red', 'Orange', 'Golden', 'Green', 'Neon', 'Blue', 'Purple', 'Silver'] as const;
 
 /** The supplies checklist older show files started with (see migrateWorksheetSupplies). */
 export const LEGACY_DEFAULT_WORKSHEET_SUPPLIES = [

@@ -18,8 +18,9 @@ There is no server. Your show autosaves in the browser, and you can save or open
   - Cakes: shots, duration, lead delay, exit fuse, 1.4G / 1.4G Pro-line grade, brand, cost.
   - Cake weight class (200g, 350g, 500g, 1000g+) and color-coded labels in two groups:
     - Tags for how a cake fires: big breaks, small, medium, long, finale, zipper, NOAB, fan, barrage, transition, fast, slow.
-    - Effects for what it looks like: crackle, strobe, willow, comets, mines, ghost, neon, golden, dahlia, peony, chrysanthemum, brocade, palm, flying fish, ring, crossette, special, tourbillion, pistil, coconut, girandola, horsetail, nishiki, salute.
-  - Compound cakes: break a cake into its fused sub cakes, each with shots, start time, duration, effect notes, tags and effects. The cake's shots and duration come from its sub cakes.
+    - Effects for what it looks like: crackle, strobe, willow, comets, mines, ghost, dahlia, peony, chrysanthemum, brocade, palm, flying fish, ring, crossette, special, tourbillion, pistil, coconut, girandola, horsetail, nishiki, salute, spider, chasers.
+    - Colors, each label shown in the color it names: red, orange, golden, green, neon, blue, purple, silver.
+  - Compound cakes: break a cake into its fused sub cakes, each with shots, start time, duration, effect notes, tags, effects and colors. The cake's shots and duration come from its sub cakes.
   - Assortments: packs of cakes bought for one price. Tag each cake with its assortment (and how many come in it); the assortment's shots and duration come from its cakes, so cost per shot and per second are worked out across the whole assortment, and each cake's cost is its share of the price by shots.
   - Cost per shot and cost per second for cakes and roman candles.
   - Rockets (light-to-burst, burst time) and roman candles (shots, duration, lead delay), priced each or by the pack.

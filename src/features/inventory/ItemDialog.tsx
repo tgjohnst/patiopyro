@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import { useState } from 'react';
 import { Button, Checkbox, Field, Modal, NumberInput, Select, TextInput } from '../../components/ui';
 import {
+  COLOR_CLASS,
   EFFECT_CLASS,
   KIND_LABEL,
   TAG_CLASS,
@@ -18,11 +19,12 @@ import {
   shellUnitCost,
   subCakeEndSec,
   tubeCount,
+  type CakeColor,
   type CakeEffect,
   type CakeTag,
   type PricingContext,
 } from '../../model/catalog';
-import { CAKE_EFFECTS, CAKE_TAGS, CAKE_WEIGHT_CLASSES } from '../../model/constants';
+import { CAKE_COLORS, CAKE_EFFECTS, CAKE_TAGS, CAKE_WEIGHT_CLASSES } from '../../model/constants';
 import { uid } from '../../model/defaults';
 import type { Cake, Candle, CatalogItem, Rack, Rocket, Shell, SubCake } from '../../model/schema';
 import { upsertCatalogItem } from '../../store/actions';
@@ -48,6 +50,7 @@ export function newCatalogItem(kind: CatalogItem['kind'], opts: { assortmentId?:
         weightClass: null,
         tags: [],
         effects: [],
+        colors: [],
         subCakes: [],
         assortmentId: opts.assortmentId ?? null,
         assortmentQty: 1,
@@ -156,15 +159,15 @@ function LabelPicker<T extends string>({
   );
 }
 
-/** Tags and effects pickers for a cake or sub cake. */
+/** Tags, effects and colors pickers for a cake or sub cake. */
 function TagEffectPickers({
   value,
   onChange,
   small,
   prefix = '',
 }: {
-  value: { tags: CakeTag[]; effects: CakeEffect[] };
-  onChange: (patch: { tags?: CakeTag[]; effects?: CakeEffect[] }) => void;
+  value: { tags: CakeTag[]; effects: CakeEffect[]; colors: CakeColor[] };
+  onChange: (patch: { tags?: CakeTag[]; effects?: CakeEffect[]; colors?: CakeColor[] }) => void;
   small?: boolean;
   prefix?: string;
 }) {
@@ -186,6 +189,14 @@ function TagEffectPickers({
         onChange={(effects) => onChange({ effects })}
         small={small}
         square
+      />
+      <LabelPicker
+        legend={`${prefix}Colors`}
+        options={CAKE_COLORS}
+        classes={COLOR_CLASS}
+        value={value.colors}
+        onChange={(colors) => onChange({ colors })}
+        small={small}
       />
     </div>
   );
@@ -215,6 +226,7 @@ function SubCakesEditor({ cake, onChange }: { cake: Cake; onChange: (subCakes: S
         effectNotes: last ? '' : cake.effectNotes,
         tags: last ? [] : cake.tags,
         effects: last ? [] : cake.effects,
+        colors: last ? [] : cake.colors,
       },
     ]);
   };

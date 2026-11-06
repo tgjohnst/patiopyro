@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CAKE_EFFECTS, CAKE_TAGS, CAKE_WEIGHT_CLASSES, LEGACY_DEFAULT_WORKSHEET_SUPPLIES } from './constants';
+import { CAKE_COLORS, CAKE_EFFECTS, CAKE_TAGS, CAKE_WEIGHT_CLASSES, LEGACY_DEFAULT_WORKSHEET_SUPPLIES } from './constants';
 
 export const SCHEMA_VERSION = 1;
 
@@ -26,6 +26,7 @@ export const subCakeSchema = z.object({
   effectNotes: z.string().default(''),
   tags: z.array(z.enum(CAKE_TAGS)).default([]),
   effects: z.array(z.enum(CAKE_EFFECTS)).default([]),
+  colors: z.array(z.enum(CAKE_COLORS)).default([]),
 });
 
 export const cakeSchema = z.object({
@@ -46,6 +47,7 @@ export const cakeSchema = z.object({
   weightClass: z.enum(CAKE_WEIGHT_CLASSES).nullable().default(null),
   tags: z.array(z.enum(CAKE_TAGS)).default([]),
   effects: z.array(z.enum(CAKE_EFFECTS)).default([]),
+  colors: z.array(z.enum(CAKE_COLORS)).default([]),
   /** Non-empty for compound cakes: the fused sections, each broken out. */
   subCakes: z.array(subCakeSchema).default([]),
   /** Assortment this cake came in; its cost then comes from the assortment (see itemUnitCost). */
@@ -350,7 +352,7 @@ export function parseShow(raw: unknown): Show {
     );
   }
   // Future migrations: if (obj.schemaVersion === 1) raw = migrate1to2(raw) ...
-  const result = showSchema.safeParse(migrateCakeCategories(migrateWorksheetSupplies(raw)));
+  const result = showSchema.safeParse(migrateColorEffects(migrateCakeCategories(migrateWorksheetSupplies(raw))));
   if (!result.success) {
     const issue = result.error.issues[0];
     throw new Error(`Invalid show file at ${issue.path.join('.')}: ${issue.message}`);
@@ -380,11 +382,13 @@ function migrateWorksheetSupplies(raw: unknown): unknown {
 }
 
 const TAG_SET = new Set<string>(CAKE_TAGS);
+const COLOR_SET = new Set<string>(CAKE_COLORS);
 const EFFECT_SET = new Set<string>(CAKE_EFFECTS);
 
 /**
  * Older files kept one `categories` list per cake and sub cake. Split it into tags and effects;
- * names that are neither (the old "Colors") are dropped.
+ * names that are neither (the old "Colors") are dropped. Colors go in with the effects here,
+ * as they did when these files were written, and migrateColorEffects moves them out.
  */
 function migrateCakeCategories(raw: unknown): unknown {
   const show = raw as { catalog?: unknown };
@@ -396,7 +400,7 @@ function migrateCakeCategories(raw: unknown): unknown {
     return {
       ...rest,
       tags: rest.tags ?? names.filter((n) => TAG_SET.has(n)),
-      effects: rest.effects ?? names.filter((n) => EFFECT_SET.has(n)),
+      effects: rest.effects ?? names.filter((n) => EFFECT_SET.has(n) || COLOR_SET.has(n)),
     };
   };
   const catalog = show.catalog.map((item: Record<string, unknown>) => {
@@ -404,6 +408,29 @@ function migrateCakeCategories(raw: unknown): unknown {
     const cake = split(item);
     return Array.isArray(cake.subCakes)
       ? { ...cake, subCakes: cake.subCakes.map((sub: Record<string, unknown>) => split(sub)) }
+      : cake;
+  });
+  return { ...show, catalog };
+}
+
+/** Older files listed Golden and Neon as effects. Move them to the cake's or sub cake's colors. */
+function migrateColorEffects(raw: unknown): unknown {
+  const show = raw as { catalog?: unknown };
+  if (!Array.isArray(show.catalog)) return raw;
+  const move = (o: Record<string, unknown>) => {
+    if (!Array.isArray(o.effects) || !o.effects.some((e) => COLOR_SET.has(e))) return o;
+    const colors = new Set<unknown>([...(Array.isArray(o.colors) ? o.colors : []), ...o.effects.filter((e) => COLOR_SET.has(e))]);
+    return {
+      ...o,
+      effects: o.effects.filter((e) => !COLOR_SET.has(e)),
+      colors: CAKE_COLORS.filter((c) => colors.has(c)),
+    };
+  };
+  const catalog = show.catalog.map((item: Record<string, unknown>) => {
+    if (item?.kind !== 'cake') return item;
+    const cake = move(item);
+    return Array.isArray(cake.subCakes)
+      ? { ...cake, subCakes: cake.subCakes.map((sub: Record<string, unknown>) => move(sub)) }
       : cake;
   });
   return { ...show, catalog };

@@ -1,8 +1,9 @@
-import type { CAKE_EFFECTS, CAKE_TAGS } from './constants';
+import type { CAKE_COLORS, CAKE_EFFECTS, CAKE_TAGS } from './constants';
 import type { Assortment, Cake, CatalogItem, ShellPricing, Show, SubCake } from './schema';
 
 export type CakeTag = (typeof CAKE_TAGS)[number];
 export type CakeEffect = (typeof CAKE_EFFECTS)[number];
+export type CakeColor = (typeof CAKE_COLORS)[number];
 
 /** Label colors per cake tag. Literal class names so Tailwind picks them up. */
 export const TAG_CLASS: Record<CakeTag, string> = {
@@ -28,8 +29,6 @@ export const EFFECT_CLASS: Record<CakeEffect, string> = {
   Comets: 'bg-sky-500/20 text-sky-300 ring-sky-500/40',
   Mines: 'bg-emerald-500/20 text-emerald-300 ring-emerald-500/40',
   Ghost: 'bg-violet-500/20 text-violet-200 ring-violet-400/40',
-  Neon: 'bg-lime-400/20 text-lime-200 ring-lime-400/50',
-  Golden: 'bg-amber-300/20 text-amber-100 ring-amber-300/50',
   Dahlia: 'bg-rose-400/20 text-rose-200 ring-rose-400/40',
   Peony: 'bg-pink-500/20 text-pink-300 ring-pink-500/40',
   Chrysanthemum: 'bg-orange-400/20 text-orange-200 ring-orange-400/40',
@@ -46,6 +45,20 @@ export const EFFECT_CLASS: Record<CakeEffect, string> = {
   Horsetail: 'bg-zinc-300/20 text-zinc-100 ring-zinc-300/40',
   Nishiki: 'bg-amber-600/25 text-amber-100 ring-amber-600/50',
   Salute: 'bg-neutral-100/20 text-white ring-neutral-200/50',
+  Spider: 'bg-stone-300/20 text-stone-100 ring-stone-300/40',
+  Chasers: 'bg-emerald-400/20 text-emerald-100 ring-emerald-400/40',
+};
+
+/** Label colors per cake color: each label is the color it names. */
+export const COLOR_CLASS: Record<CakeColor, string> = {
+  Red: 'bg-red-500/30 text-red-300 ring-red-500/70',
+  Orange: 'bg-orange-500/30 text-orange-300 ring-orange-500/70',
+  Golden: 'bg-yellow-500/30 text-yellow-300 ring-yellow-500/70',
+  Green: 'bg-green-600/30 text-green-400 ring-green-500/70',
+  Neon: 'bg-lime-400/30 text-lime-300 ring-lime-300/80',
+  Blue: 'bg-blue-500/30 text-blue-300 ring-blue-500/70',
+  Purple: 'bg-purple-500/30 text-purple-300 ring-purple-500/70',
+  Silver: 'bg-slate-300/25 text-slate-200 ring-slate-300/70',
 };
 
 /** Unit cost for items priced per piece or by the case/pack (shells, rockets, roman candles). */

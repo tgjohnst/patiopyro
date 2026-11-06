@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import { Fragment, useState, type ReactNode } from 'react';
 import { Badge, Button, NumberInput, Panel, TextInput } from '../../components/ui';
 import {
+  COLOR_CLASS,
   EFFECT_CLASS,
   TAG_CLASS,
   PIECE_NOUNS,
@@ -265,7 +266,7 @@ export function InventoryTab() {
           <p className="text-sm text-slate-500">No cakes yet.</p>
         ) : (
           <Table
-            head={['Name', 'Brand', 'Grade', 'Weight', 'Tags', 'Effects', 'Shots', 'Duration', 'Lead', 'Exit fuse', 'Cost', 'Cost / shot', 'Cost / sec', 'Used / owned', 'Effect', 'Notes', '']}
+            head={['Name', 'Brand', 'Grade', 'Weight', 'Tags', 'Effects', 'Colors', 'Shots', 'Duration', 'Lead', 'Exit fuse', 'Cost', 'Cost / shot', 'Cost / sec', 'Used / owned', 'Effect', 'Notes', '']}
           >
             {cakes.map((c) => (
               <Fragment key={c.id}>
@@ -299,6 +300,9 @@ export function InventoryTab() {
                   <td className="min-w-32 px-2 py-1.5" data-testid="cake-effects">
                     <Labels values={c.effects} classes={EFFECT_CLASS} square />
                   </td>
+                  <td className="min-w-24 px-2 py-1.5" data-testid="cake-colors">
+                    <Labels values={c.colors} classes={COLOR_CLASS} />
+                  </td>
                   <td className={td}>{c.shots}</td>
                   <td className={td}>{formatTime(c.durationSec, 0)}</td>
                   <td className={td}>{c.leadDelaySec}s</td>
@@ -327,6 +331,9 @@ export function InventoryTab() {
                     </td>
                     <td className="px-2 py-1">
                       <Labels values={sub.effects} classes={EFFECT_CLASS} square />
+                    </td>
+                    <td className="px-2 py-1">
+                      <Labels values={sub.colors} classes={COLOR_CLASS} />
                     </td>
                     <td className={td}>{sub.shots}</td>
                     <td className={td}>{formatTime(sub.durationSec, 0)}</td>

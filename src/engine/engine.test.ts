@@ -11,7 +11,7 @@ import {
   sequenceSubCakes,
   shellUnitCost,
 } from '../model/catalog';
-import { CAKE_EFFECTS, CAKE_TAGS, LEGACY_DEFAULT_WORKSHEET_SUPPLIES } from '../model/constants';
+import { CAKE_COLORS, CAKE_EFFECTS, CAKE_TAGS, LEGACY_DEFAULT_WORKSHEET_SUPPLIES } from '../model/constants';
 import { createEmptyShow } from '../model/defaults';
 import { createDemoShow } from '../model/demo';
 import { igniterLeadIds, inKey, nodeKey, outKey, tubeKey } from '../model/endpoints';
@@ -48,6 +48,7 @@ function cake(id: string, overrides: Partial<Cake> = {}): Cake {
     weightClass: null,
     tags: [],
     effects: [],
+    colors: [],
     subCakes: [],
     assortmentId: null,
     assortmentQty: 1,
@@ -91,7 +92,7 @@ function candle(id: string, overrides: Partial<Candle> = {}): Candle {
 }
 
 function sub(name: string, shots: number, offsetSec: number, durationSec: number, tags: SubCake['tags'] = []): SubCake {
-  return { id: name, name, shots, offsetSec, durationSec, effectNotes: '', tags, effects: [] };
+  return { id: name, name, shots, offsetSec, durationSec, effectNotes: '', tags, effects: [], colors: [] };
 }
 
 function shell(id: string, overrides: Partial<Shell> = {}): Shell {
@@ -381,10 +382,11 @@ describe('show file', () => {
     delete raw.catalog[0].weightClass;
     delete raw.catalog[0].tags;
     delete raw.catalog[0].effects;
+    delete raw.catalog[0].colors;
     delete raw.supplies;
     delete raw.boards;
     const show = parseShow(raw);
-    expect(show.catalog[0]).toMatchObject({ weightClass: null, tags: [], effects: [] });
+    expect(show.catalog[0]).toMatchObject({ weightClass: null, tags: [], effects: [], colors: [] });
     expect(show.supplies).toEqual([]);
     expect(show.boards).toEqual([]);
   });
@@ -445,15 +447,48 @@ describe('web links', () => {
 });
 
 describe('cake tags and effects', () => {
-  it('accepts every tag and effect', () => {
+  it('accepts every tag, effect and color', () => {
     const raw = JSON.parse(JSON.stringify(baseShow()));
     raw.catalog[0].tags = [...CAKE_TAGS];
     raw.catalog[0].effects = [...CAKE_EFFECTS];
+    raw.catalog[0].colors = [...CAKE_COLORS];
     const loaded = parseShow(raw).catalog[0] as Cake;
     expect(loaded.tags).toHaveLength(12);
+    expect(loaded.effects).toEqual(expect.arrayContaining(['Spider', 'Chasers']));
     expect(loaded.effects).toHaveLength(24);
+    expect(loaded.colors).toEqual(expect.arrayContaining(['Red', 'Green', 'Orange', 'Purple', 'Silver', 'Blue', 'Golden', 'Neon']));
+    expect(loaded.colors).toHaveLength(8);
     raw.catalog[0].effects = ['Crackle', 'Finale'];
     expect(() => parseShow(raw)).toThrow(/effects/);
+  });
+
+  it('moves Golden and Neon from effects to colors when loading older files', () => {
+    const raw = JSON.parse(JSON.stringify(baseShow()));
+    const old = raw.catalog[0];
+    delete old.colors;
+    old.effects = ['Neon', 'Crackle', 'Golden', 'Willow'];
+    old.subCakes = [
+      { id: 's1', name: 'S1', shots: 5, offsetSec: 0, durationSec: 5, effectNotes: '', tags: ['Fan'], effects: ['Golden', 'Ghost'] },
+      { id: 's2', name: 'S2', shots: 5, offsetSec: 5, durationSec: 5, effectNotes: '', tags: [], effects: ['Ghost'] },
+    ];
+    const cakeA = parseShow(raw).catalog[0] as Cake;
+    expect(cakeA).toMatchObject({ effects: ['Crackle', 'Willow'], colors: ['Golden', 'Neon'] });
+    expect(cakeA.subCakes[0]).toMatchObject({ tags: ['Fan'], effects: ['Ghost'], colors: ['Golden'] });
+    expect(cakeA.subCakes[1]).toMatchObject({ effects: ['Ghost'], colors: [] });
+  });
+
+  it('keeps colors already set when moving old effects, without duplicates', () => {
+    const raw = JSON.parse(JSON.stringify(baseShow()));
+    raw.catalog[0].effects = ['Golden', 'Crackle'];
+    raw.catalog[0].colors = ['Blue', 'Golden'];
+    expect(parseShow(raw).catalog[0]).toMatchObject({ effects: ['Crackle'], colors: ['Golden', 'Blue'] });
+  });
+
+  it('leaves a migrated show unchanged when it is saved and loaded again', () => {
+    const raw = JSON.parse(JSON.stringify(baseShow()));
+    raw.catalog[0].effects = ['Golden', 'Crackle'];
+    const once = parseShow(raw);
+    expect(parseShow(JSON.parse(JSON.stringify(once)))).toEqual(once);
   });
 
   it('splits the old categories list into tags and effects, dropping Colors', () => {
@@ -464,7 +499,7 @@ describe('cake tags and effects', () => {
     old.categories = ['Big breaks', 'Crackle', 'Colors', 'Slow', 'Golden'];
     old.subCakes = [{ id: 's', name: 'S', shots: 5, offsetSec: 0, durationSec: 5, effectNotes: '', categories: ['Ghost', 'Fan'] }];
     const cakeA = parseShow(raw).catalog[0] as Cake;
-    expect(cakeA).toMatchObject({ tags: ['Big breaks', 'Slow'], effects: ['Crackle', 'Golden'] });
+    expect(cakeA).toMatchObject({ tags: ['Big breaks', 'Slow'], effects: ['Crackle'], colors: ['Golden'] });
     expect(cakeA).not.toHaveProperty('categories');
     expect(cakeA.subCakes[0]).toMatchObject({ tags: ['Fan'], effects: ['Ghost'] });
   });

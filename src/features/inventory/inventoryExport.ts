@@ -42,13 +42,13 @@ export function inventorySheets(show: Show, used: (catalogId: string) => number)
     {
       name: 'Cakes',
       head: [
-        'Name', 'Brand', 'Grade', 'Weight class', 'Tags', 'Effects', 'Shots', 'Duration (s)', 'Lead delay (s)',
+        'Name', 'Brand', 'Grade', 'Weight class', 'Tags', 'Effects', 'Colors', 'Shots', 'Duration (s)', 'Lead delay (s)',
         'Exit fuse', 'Compound', 'Assortment', 'Per assortment', 'Cost (each)', 'Cost / shot', 'Cost / sec',
         'Owned', 'Used', 'Effect notes', 'Notes', 'Link',
       ],
-      money: [13, 14, 15],
+      money: [14, 15, 16],
       rows: cakes.map((c) => [
-        c.name, c.brand, c.grade, c.weightClass ?? '', list(c.tags), list(c.effects), c.shots, c.durationSec,
+        c.name, c.brand, c.grade, c.weightClass ?? '', list(c.tags), list(c.effects), list(c.colors), c.shots, c.durationSec,
         c.leadDelaySec, c.hasExitFuse ? 'Yes' : 'No', c.subCakes.length ? `${c.subCakes.length} sub cakes` : '',
         cakeAssortment(c, show)?.name ?? '', cakeAssortment(c, show) ? c.assortmentQty : '', itemUnitCost(c, show),
         orBlank(costPerShot(c, show)), orBlank(costPerSecond(c, show)), c.qtyOwned, used(c.id), c.effectNotes,
@@ -57,10 +57,10 @@ export function inventorySheets(show: Show, used: (catalogId: string) => number)
     },
     {
       name: 'Sub cakes',
-      head: ['Cake', 'Sub cake', 'Shots', 'Starts at (s)', 'Duration (s)', 'Tags', 'Effects', 'Effect notes'],
+      head: ['Cake', 'Sub cake', 'Shots', 'Starts at (s)', 'Duration (s)', 'Tags', 'Effects', 'Colors', 'Effect notes'],
       money: [],
       rows: cakes.flatMap((c) =>
-        c.subCakes.map((s) => [c.name, s.name, s.shots, s.offsetSec, s.durationSec, list(s.tags), list(s.effects), s.effectNotes]),
+        c.subCakes.map((s) => [c.name, s.name, s.shots, s.offsetSec, s.durationSec, list(s.tags), list(s.effects), list(s.colors), s.effectNotes]),
       ),
     },
     {

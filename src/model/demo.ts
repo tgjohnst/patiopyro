@@ -40,7 +40,7 @@ export function createDemoShow(): Show {
     leadDelaySec: 4,
     hasExitFuse: true,
     weightClass: null,
-    tags: [], effects: [],
+    tags: [], effects: [], colors: [],
     subCakes: [],
     assortmentId: null,
     assortmentQty: 1,
@@ -53,7 +53,7 @@ export function createDemoShow(): Show {
     durationSec: 30,
     effectNotes: 'Gold brocade to crackle',
     weightClass: '500g',
-    tags: ['Big breaks'], effects: ['Crackle', 'Golden'],
+    tags: ['Big breaks'], effects: ['Crackle'], colors: ['Golden'],
     notes: 'Opener',
   });
   const willow = cake('Crackling Willow', {
@@ -70,7 +70,7 @@ export function createDemoShow(): Show {
     unitCost: 55,
     effectNotes: 'Blue comet fans',
     weightClass: '350g',
-    tags: ['Medium', 'Fan'], effects: ['Comets'],
+    tags: ['Medium', 'Fan'], effects: ['Comets'], colors: ['Blue'],
   });
   const strobe = cake('Strobe Fan', {
     shots: 49,
@@ -102,9 +102,9 @@ export function createDemoShow(): Show {
       tags: ['Transition'], effects: ['Peony'],
       notes: 'One lead fuse lights all three sections in turn',
       subCakes: [
-        sub('Ghost fans', { shots: 20, offsetSec: 0, durationSec: 12, effectNotes: 'Blue-to-green ghost comets', tags: ['Fan'], effects: ['Ghost'] }),
-        sub('Strobe crossfire', { shots: 30, offsetSec: 12, durationSec: 10, effectNotes: 'White strobe Z-pattern', tags: ['Fast'], effects: ['Strobe'] }),
-        sub('Golden willow', { shots: 16, offsetSec: 22, durationSec: 18, effectNotes: 'Slow hanging gold', tags: ['Slow'], effects: ['Golden', 'Willow'] }),
+        sub('Ghost fans', { shots: 20, offsetSec: 0, durationSec: 12, effectNotes: 'Blue-to-green ghost comets', tags: ['Fan'], effects: ['Ghost'], colors: ['Blue', 'Green'] }),
+        sub('Strobe crossfire', { shots: 30, offsetSec: 12, durationSec: 10, effectNotes: 'White strobe Z-pattern', tags: ['Fast'], effects: ['Strobe'], colors: [] }),
+        sub('Golden willow', { shots: 16, offsetSec: 22, durationSec: 18, effectNotes: 'Slow hanging gold', tags: ['Slow'], effects: ['Willow'], colors: ['Golden'] }),
       ],
     }),
   );
