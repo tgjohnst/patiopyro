@@ -14,6 +14,12 @@ async function dragBy(page: Page, target: Locator, dx: number, grabX?: number) {
   await page.mouse.up();
 }
 
+/** Select a cue wherever it is on the timeline, without moving it. */
+async function selectCue(page: Page, label: string) {
+  await page.getByTestId(`cue-${label}`).dispatchEvent('pointerdown', { clientX: 0, clientY: 0, bubbles: true });
+  await page.evaluate(() => window.dispatchEvent(new PointerEvent('pointerup', { clientX: 0, clientY: 0 })));
+}
+
 async function openTimeline(page: Page) {
   page.on('dialog', (d) => d.accept());
   await page.goto('/');
@@ -32,8 +38,7 @@ test('scenes: move, resize, rename, remove and create', async ({ page }) => {
 
   const startField = page.getByLabel('Start (s)');
   const cueTime = async (label: string) => {
-    await page.getByTestId(`cue-${label}`).dispatchEvent('pointerdown', { clientX: 0, clientY: 0, bubbles: true });
-    await page.mouse.up();
+    await selectCue(page, label);
     return page.getByLabel('Time (s)').inputValue();
   };
 
@@ -98,8 +103,7 @@ test('scenes: move, resize, rename, remove and create', async ({ page }) => {
   await expect(page.getByTestId('scene-Hello')).toBeVisible();
 
   // A cue selected inside a scene can't seed another scene.
-  await page.getByTestId('cue-Cue 5 (2-1)').dispatchEvent('pointerdown', { clientX: 0, clientY: 0, bubbles: true });
-  await page.mouse.up();
+  await selectCue(page, 'Cue 5 (2-1)');
   await expect(page.getByRole('button', { name: /Scene from selection/ })).toBeDisabled();
 
   expect(errors).toEqual([]);
@@ -124,4 +128,31 @@ test('scenes appear in show mode and the show plan', async ({ page }) => {
   await expect(page.getByTestId('plan-scene')).toHaveCount(4);
   await expect(page.getByTestId('plan-scene').first()).toContainText('Opening');
   await expect(page.getByText('Cue 9 (3-1)', { exact: true })).toBeVisible();
+});
+
+/** Press on a target, then move and release in one tick, before React can render the move. */
+async function quickDrag(page: Page, target: Locator, dx: number) {
+  await target.scrollIntoViewIfNeeded();
+  const b = (await target.boundingBox())!;
+  const [x, y] = [b.x + b.width / 2, b.y + b.height / 2];
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.evaluate(
+    ([clientX, clientY]) => {
+      window.dispatchEvent(new PointerEvent('pointermove', { clientX, clientY }));
+      window.dispatchEvent(new PointerEvent('pointerup', { clientX, clientY }));
+    },
+    [x + dx, y],
+  );
+  await page.mouse.up();
+}
+
+test('a drag lands where the pointer was released, even if the last move has not rendered', async ({ page }) => {
+  await openTimeline(page);
+
+  await quickDrag(page, page.getByTestId('scene-Finale'), 5 * PPS);
+  await expect(page.getByLabel('Start (s)')).toHaveValue('130');
+
+  await quickDrag(page, page.getByTestId('cue-Cue 9 (3-1)'), 2 * PPS);
+  await expect(page.getByLabel('Time (s)')).toHaveValue('72');
 });

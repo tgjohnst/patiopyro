@@ -45,6 +45,8 @@ test('demo show: layout, fuse, timeline, reports and exports', async ({ page }) 
 
   // Drag a cake from the inventory onto the canvas
   const nodesBefore = await page.locator('.react-flow__node').count();
+  const edges = page.locator('.react-flow__edge');
+  const edgesBefore = await edges.count();
   await page.getByTestId('inv-Blue Comets').dragTo(page.getByTestId('position-canvas'), { targetPosition: { x: 300, y: 520 } });
   await expect(page.locator('.react-flow__node')).toHaveCount(nodesBefore + 1);
 
@@ -52,7 +54,8 @@ test('demo show: layout, fuse, timeline, reports and exports', async ({ page }) 
   await page.getByRole('combobox', { name: 'Module', exact: true }).first().selectOption({ label: 'M2' });
   await page.getByRole('button', { name: '⚡ Add igniter' }).click();
   await expect(page.locator('.react-flow__node')).toHaveCount(nodesBefore + 2);
-  const edgesBefore = await page.locator('.react-flow__edge').count();
+  // React Flow hides every edge for a moment while it re-measures nodes after a change.
+  await expect(edges).toHaveCount(edgesBefore);
   const igniter = page.locator('.react-flow__node-igniter', { hasText: 'M2 #2' }).locator('.react-flow__handle');
   const lead = page.getByTestId('node-Blue Comets').locator('[data-handleid="in"]');
   const a = (await igniter.boundingBox())!;
@@ -62,7 +65,7 @@ test('demo show: layout, fuse, timeline, reports and exports', async ({ page }) 
   await page.mouse.move(b.x + b.width / 2 + 5, b.y + b.height / 2 + 5, { steps: 10 });
   await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 5 });
   await page.mouse.up();
-  await expect(page.locator('.react-flow__edge')).toHaveCount(edgesBefore + 1);
+  await expect(edges).toHaveCount(edgesBefore + 1);
   await expect(page.getByTestId('node-Blue Comets')).toContainText('Cue 6');
   await shot(page, '4-positions-wired');
 

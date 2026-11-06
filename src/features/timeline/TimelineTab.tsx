@@ -233,16 +233,18 @@ export function TimelineTab() {
       const dt = snapTo((e.clientX - sceneDrag.startX) / pps, snap);
       if (dt !== sceneDrag.dt) setSceneDrag({ ...sceneDrag, dt });
     };
-    const onUp = () => {
-      if (sceneDrag.mode === 'draw') {
-        const { startSec, endSec } = drawnRange(show, sceneDrag, snap);
+    const onUp = (e: PointerEvent) => {
+      // Measure from this event: the last move may not have rendered into state yet.
+      const final = { ...sceneDrag, dt: snapTo((e.clientX - sceneDrag.startX) / pps, snap) };
+      if (final.mode === 'draw') {
+        const { startSec, endSec } = drawnRange(show, final, snap);
         if (endSec - startSec >= MIN_SCENE_SEC) setSelectedSceneId(addScene(startSec, endSec));
-      } else if (sceneDrag.sceneId && sceneDrag.dt !== 0) {
-        if (sceneDrag.mode === 'move') {
-          moveScene(sceneDrag.sceneId, sceneDrag.dt);
+      } else if (final.sceneId && final.dt !== 0) {
+        if (final.mode === 'move') {
+          moveScene(final.sceneId, final.dt);
         } else {
-          const range = resizedRange(show, sceneDrag);
-          if (range) setSceneRange(sceneDrag.sceneId, range.startSec, range.endSec);
+          const range = resizedRange(show, final);
+          if (range) setSceneRange(final.sceneId, range.startSec, range.endSec);
         }
       }
       setSceneDrag(null);
@@ -298,15 +300,17 @@ export function TimelineTab() {
         setDrag({ ...drag, dt, targetRow, moved });
       }
     };
-    const onUp = () => {
+    const onUp = (e: PointerEvent) => {
+      // Measure from this event: the last move may not have rendered into state yet.
+      const dt = snapTo((e.clientX - drag.startX) / pps, snap);
       if (drag.targetRow) {
         const from = drag.addrs[0];
         if (window.confirm('Link these module cues to the other controller cue? They will fire together at that cue\'s time.')) {
           moveAddressPins(from, drag.targetRow);
           setSelected([drag.targetRow]);
         }
-      } else if (drag.dt !== 0) {
-        setCueTimes(Object.fromEntries(drag.addrs.map((a) => [a, drag.orig[a] + drag.dt])));
+      } else if (dt !== 0) {
+        setCueTimes(Object.fromEntries(drag.addrs.map((a) => [a, drag.orig[a] + dt])));
       }
       setDrag(null);
     };
