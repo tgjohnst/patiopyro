@@ -2,7 +2,12 @@ import type { Controller, FiringModule } from './schema';
 
 export interface CueAddress {
   id: string;
+  /** What to call the cue, with its place in the district when numbered within districts: "Cue 13 (2-1)". */
   label: string;
+  /** The label without that place: "Cue 13". */
+  baseLabel: string;
+  /** Flat cues on a remote with districts: district and cue within it, e.g. "2-1". */
+  districtCue: string | null;
   /** Sort key: channel/cue order, or module order then pin. */
   order: number;
 }
@@ -56,18 +61,24 @@ export function parseAddress(
   return null;
 }
 
-export function describeAddress(id: string, modules: FiringModule[]): CueAddress {
+export function describeAddress(ctrl: Controller, modules: FiringModule[], id: string): CueAddress {
+  const plain = (label: string, order: number): CueAddress => ({ id, label, baseLabel: label, districtCue: null, order });
   const p = parseAddress(id);
-  if (!p) return { id, label: id, order: Number.MAX_SAFE_INTEGER };
+  if (!p) return plain(id, Number.MAX_SAFE_INTEGER);
   switch (p.kind) {
-    case 'flat':
-      return { id, label: `Cue ${p.cue}`, order: p.cue };
+    case 'flat': {
+      const baseLabel = `Cue ${p.cue}`;
+      const district = cueDistrict(ctrl, id);
+      if (!district) return plain(baseLabel, p.cue);
+      const districtCue = `${district.index}-${p.cue - (district.index - 1) * ctrl.cuesPerDistrict}`;
+      return { id, label: `${baseLabel} (${districtCue})`, baseLabel, districtCue, order: p.cue };
+    }
     case 'channels':
-      return { id, label: `Ch ${p.channel} · Cue ${p.cue}`, order: p.channel * 1000 + p.cue };
+      return plain(`Ch ${p.channel} · Cue ${p.cue}`, p.channel * 1000 + p.cue);
     case 'module': {
       const idx = modules.findIndex((m) => m.id === p.moduleId);
       const name = idx >= 0 ? modules[idx].name : '?';
-      return { id, label: `${name} · Cue ${p.pin}`, order: (idx + 1) * 1000 + p.pin };
+      return plain(`${name} · Cue ${p.pin}`, (idx + 1) * 1000 + p.pin);
     }
   }
 }
@@ -129,7 +140,7 @@ export function selectableAddresses(ctrl: Controller, modules: FiringModule[]): 
       });
       break;
   }
-  return ids.map((id) => describeAddress(id, modules));
+  return ids.map((id) => describeAddress(ctrl, modules, id));
 }
 
 export interface District {

@@ -42,7 +42,7 @@ There is no server. Your show autosaves in the browser, and you can save or open
   - Helpers chain cakes in sequence or fan them out from one junction.
   - Boards: add a board, set its width and depth, and it is drawn to scale. Drop or drag items onto a board (or pick it in the inspector) to set them on it; they move with the board.
 - **Rack editor:** open a rack to load shells, rockets or roman candles tube by tube (click or drag). Rockets and roman candles can also be placed on the canvas by themselves. Lay fuse by clicking tubes in order, or series-fuse a whole rack in one click.
-- **Firing systems:** presets for a generic receiver system, COBRA 18R2 (channels and banks), IGNITE (per-module cues, 6-module limit), Bilusocn and P1200-style kits. Add modules, assign them to positions, and link module cues to the same controller cue so they fire together. Set cues per district for remotes that switch between districts (channel systems use channels).
+- **Firing systems:** presets for a generic receiver system, COBRA 18R2 (channels and banks), IGNITE (per-module cues, 6-module limit), Bilusocn and P1200-style kits. Add modules, assign them to positions, and link module cues to the same controller cue so they fire together. Set cues per district for remotes that switch between districts (channel systems use channels). Numbered cues then also show their place in the district, so with 12 cues per district, cue 13 reads "Cue 13 (2-1)".
 - **Timing engine:** computes every effect's ignition and burst time from the cue time, fuse burn time, cake lead and exit fuses, and junction splits (earliest arrival wins).
 - **Piano-roll timeline:**
   - Rows by cue or by position, showing effect bars for everything each cue fires.

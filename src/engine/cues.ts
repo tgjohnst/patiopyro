@@ -27,7 +27,7 @@ export function buildCueList(show: Show, timing: TimingResult): CueEntry[] {
     const addr = pinAddress(ctrl, mod, n.pin);
     let entry = map.get(addr);
     if (!entry) {
-      const d = describeAddress(addr, show.firing.modules);
+      const d = describeAddress(ctrl, show.firing.modules, addr);
       entry = {
         addressId: addr,
         label: d.label,

@@ -209,7 +209,7 @@ export function FiringTab() {
           <ul className="flex flex-col gap-1 text-sm">
             {linkedGroups.map(([addr, pins]) => (
               <li key={addr} className="flex flex-wrap items-center gap-2">
-                <Badge tone="amber">{describeAddress(addr, modules).label}</Badge>
+                <Badge tone="amber">{describeAddress(ctrl, modules, addr).label}</Badge>
                 <span className="text-slate-400">fires</span>
                 {pins.map((p) => (
                   <Badge key={`${p.moduleId}:${p.pin}`}>
@@ -364,6 +364,7 @@ function ModuleCard({
           const overridden = m.pinOverrides[String(pin)] !== undefined;
           const t = cueTimes[addr];
           const district = ctrl.addressing === 'flat' ? cueDistrict(ctrl, addr) : null;
+          const address = describeAddress(ctrl, modules, addr);
           return (
             <button
               key={pin}
@@ -372,7 +373,7 @@ function ModuleCard({
                 'rounded-md border px-1.5 py-1 text-left text-[11px] leading-tight transition-colors',
                 wired ? 'border-amber-500/50 bg-amber-500/10' : 'border-slate-800 bg-slate-950 hover:border-slate-600',
               )}
-              title={`${m.name} cue ${pin} → ${describeAddress(addr, modules).label}`}
+              title={`${m.name} cue ${pin} → ${address.label}`}
             >
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-slate-200">#{pin}</span>
@@ -383,8 +384,8 @@ function ModuleCard({
               </div>
               {ctrl.addressing !== 'module' && (
                 <div className="truncate text-slate-400">
-                  {describeAddress(addr, modules).label}
-                  {district && <span style={{ color: districtColor(district) }}> · {district.short}</span>}
+                  {address.baseLabel}
+                  {district && <span style={{ color: districtColor(district) }}> ({address.districtCue})</span>}
                 </div>
               )}
               <div className="truncate text-slate-500">

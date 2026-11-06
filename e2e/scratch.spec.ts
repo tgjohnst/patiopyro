@@ -115,7 +115,7 @@ test('build a show from scratch, undo, autosave and print', async ({ page }) => 
   await page.getByLabel('Cues per district').fill('6');
   await page.getByLabel('Cues per district').press('Enter');
   await expect(page.getByTestId('district-summary')).toContainText('District 2');
-  await expect(page.getByTestId('module-M1')).toContainText('Cue 7 · D2');
+  await expect(page.getByTestId('module-M1')).toContainText('Cue 7 (2-1)');
 
   // Position: place the cake, add an igniter, wire it
   await page.getByRole('button', { name: 'Positions', exact: true }).click();

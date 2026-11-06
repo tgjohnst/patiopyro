@@ -42,12 +42,12 @@ test('scenes: move, resize, rename, remove and create', async ({ page }) => {
   await expect(startField).toHaveValue('130');
   await expect(page.getByTestId('scene-cues')).toContainText('1 cue in this scene');
   await expect(page.getByTestId('scene-cues')).toContainText('Cue 5');
-  expect(await cueTime('Cue 5')).toBe('130');
-  expect(await cueTime('Cue 15')).toBe('112');
+  expect(await cueTime('Cue 5 (2-1)')).toBe('130');
+  expect(await cueTime('Cue 15 (4-3)')).toBe('112');
 
   // Undo restores the scene and its cue in one step.
   await page.keyboard.press('Control+z');
-  expect(await cueTime('Cue 5')).toBe('125');
+  expect(await cueTime('Cue 5 (2-1)')).toBe('125');
 
   // Crescendo (98-120) stops against Finale at 125 when dragged further than the 5 s gap.
   await dragBy(page, page.getByTestId('scene-Crescendo'), 15 * PPS);
@@ -59,13 +59,13 @@ test('scenes: move, resize, rename, remove and create', async ({ page }) => {
   await expect(startField).toHaveValue('101');
   await page.keyboard.press('ArrowRight');
   await expect(startField).toHaveValue('101.5');
-  expect(await cueTime('Cue 10')).toBe('101.5');
+  expect(await cueTime('Cue 10 (3-2)')).toBe('101.5');
 
   // Dragging an edge resizes without moving cues.
   await dragBy(page, page.getByTestId('scene-Opening-end'), -5 * PPS, 3);
   await page.getByTestId('scene-Opening').click({ position: { x: 30, y: 5 } });
   await expect(page.getByLabel('End (s)')).toHaveValue('35');
-  expect(await cueTime('Cue 1')).toBe('0');
+  expect(await cueTime('Cue 1 (1-1)')).toBe('0');
 
   // Rename from a double-click.
   await page.getByTestId('scene-Opening').dblclick({ position: { x: 30, y: 5 } });
@@ -76,7 +76,7 @@ test('scenes: move, resize, rename, remove and create', async ({ page }) => {
   // Removing a scene leaves its cues where they are.
   await page.getByRole('button', { name: 'Remove scene' }).click();
   await expect(page.getByTestId('scene-Overture')).toHaveCount(0);
-  expect(await cueTime('Cue 1')).toBe('0');
+  expect(await cueTime('Cue 1 (1-1)')).toBe('0');
 
   // Cue 1 now has no scene, so it can seed a new one from the selection.
   await page.getByRole('button', { name: /Scene from selection/ }).click();
@@ -98,7 +98,7 @@ test('scenes: move, resize, rename, remove and create', async ({ page }) => {
   await expect(page.getByTestId('scene-Hello')).toBeVisible();
 
   // A cue selected inside a scene can't seed another scene.
-  await page.getByTestId('cue-Cue 5').dispatchEvent('pointerdown', { clientX: 0, clientY: 0, bubbles: true });
+  await page.getByTestId('cue-Cue 5 (2-1)').dispatchEvent('pointerdown', { clientX: 0, clientY: 0, bubbles: true });
   await page.mouse.up();
   await expect(page.getByRole('button', { name: /Scene from selection/ })).toBeDisabled();
 
@@ -115,10 +115,13 @@ test('scenes appear in show mode and the show plan', async ({ page }) => {
   await expect(page.getByTestId('list-scene')).toHaveText(['Opening', 'Build', 'Crescendo', 'Finale']);
   await page.keyboard.press('n');
   await expect(page.getByTestId('current-scene')).toContainText('Opening');
+  await expect(page.getByTestId('next-cue')).toContainText('Cue 2 (1-2)');
+  await expect(page.getByTestId('show-cue-list')).toContainText('Cue 14 (4-2)');
   await page.screenshot({ path: 'test-results/shots/scenes-show-mode.png' });
   await page.keyboard.press('Escape');
 
   await page.getByRole('button', { name: 'Show plan', exact: true }).click();
   await expect(page.getByTestId('plan-scene')).toHaveCount(4);
   await expect(page.getByTestId('plan-scene').first()).toContainText('Opening');
+  await expect(page.getByText('Cue 9 (3-1)', { exact: true })).toBeVisible();
 });

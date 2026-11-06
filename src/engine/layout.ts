@@ -145,7 +145,7 @@ export function positionLayout(show: Show, positionId: string, timing: TimingRes
         w,
         h,
         label: label(p),
-        detail: t ? `${kind} · ${describeAddress(t.addressId, show.firing.modules).label}` : kind,
+        detail: t ? `${kind} · ${describeAddress(show.firing.controller, show.firing.modules, t.addressId).label}` : kind,
       });
       anchors.set(`in:${p.id}`, { x: p.x, y: p.y + h / 2 });
       anchors.set(`out:${p.id}`, { x: p.x + w, y: p.y + h / 2 });
@@ -164,7 +164,7 @@ export function positionLayout(show: Show, positionId: string, timing: TimingRes
         y: n.y,
         ...IGNITER,
         label: mod ? `${mod.name} #${n.pin}` : 'Missing module',
-        detail: addr ? describeAddress(addr, show.firing.modules).label : '',
+        detail: addr ? describeAddress(show.firing.controller, show.firing.modules, addr).label : '',
       });
       anchors.set(`n:${n.id}`, { x: n.x + IGNITER.w / 2, y: n.y + IGNITER.h });
     } else {

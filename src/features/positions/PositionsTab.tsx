@@ -130,7 +130,7 @@ function buildGraph(show: Show, positionId: string) {
           placed: p,
           item,
           timing: t,
-          cueLabel: t ? describeAddress(t.addressId, show.firing.modules).label : undefined,
+          cueLabel: t ? describeAddress(ctrl, show.firing.modules, t.addressId).label : undefined,
           displayName,
         },
       });
@@ -174,7 +174,7 @@ function buildGraph(show: Show, positionId: string) {
         position: { x: n.x, y: n.y },
         data: {
           title: mod ? `${mod.name} #${n.pin}` : 'Missing module',
-          subtitle: addr ? `${describeAddress(addr, show.firing.modules).label} @ ${t !== undefined ? formatTime(t) : '—'}` : '',
+          subtitle: addr ? `${describeAddress(ctrl, show.firing.modules, addr).label} @ ${t !== undefined ? formatTime(t) : '—'}` : '',
           ok: !!mod && t !== undefined && mod.positionId === positionId,
           kind: ctrl.igniterKind,
         },
@@ -817,7 +817,7 @@ function IgniterInspector({ nodeId, positionId }: { nodeId: string; positionId: 
       </Field>
       {addr && (
         <>
-          <p className="text-xs text-slate-400">Fires on {describeAddress(addr, modules).label}</p>
+          <p className="text-xs text-slate-400">Fires on {describeAddress(ctrl, modules, addr).label}</p>
           <Field label="Cue time (seconds from show start)">
             <NumberInput min={0} value={cueTimes[addr] ?? 0} onChange={(t) => setCueTime(addr, t)} />
           </Field>

@@ -159,8 +159,8 @@ describe('scenes in show files and exports', () => {
     const rows = cueRows(demo, computeTiming(demo));
     const col = rows[0].indexOf('Scene');
     const cueCol = rows[0].indexOf('Cue');
-    expect(rows.find((r) => r[cueCol] === 'Cue 1')?.[col]).toBe('Opening');
-    expect(rows.find((r) => r[cueCol] === 'Cue 5')?.[col]).toBe('Finale');
+    expect(rows.find((r) => r[cueCol] === 'Cue 1 (1-1)')?.[col]).toBe('Opening');
+    expect(rows.find((r) => r[cueCol] === 'Cue 5 (2-1)')?.[col]).toBe('Finale');
   });
 
   it('gives every demo cue a scene, and the scenes do not overlap', () => {

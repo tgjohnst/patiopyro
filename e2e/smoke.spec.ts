@@ -80,7 +80,7 @@ test('demo show: layout, fuse, timeline, reports and exports', async ({ page }) 
 
   // Timeline: drag cue 9 right by ~10 s
   await page.getByRole('button', { name: 'Timeline', exact: true }).click();
-  const cue = page.getByTestId('cue-Cue 9');
+  const cue = page.getByTestId('cue-Cue 9 (3-1)');
   await expect(cue).toBeVisible();
   const c = (await cue.boundingBox())!;
   await page.mouse.move(c.x + c.width / 2, c.y + 20);

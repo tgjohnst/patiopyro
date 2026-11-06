@@ -184,7 +184,7 @@ export function buildPositionSheets(show: Show, timing: TimingResult): PositionS
       igniterId: n.id,
       moduleName: mod?.name ?? '?',
       pin: n.pin,
-      addressLabel: mod ? describeAddress(addr, show.firing.modules).label : '—',
+      addressLabel: mod ? describeAddress(ctrl, show.firing.modules, addr).label : '—',
       cueTime: time,
       steps: walk(nodeKey(n.id)),
       effects: timing.effects.filter((e) => e.igniterId === n.id && e.positionId === position.id),

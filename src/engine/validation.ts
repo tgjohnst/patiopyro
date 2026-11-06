@@ -87,7 +87,7 @@ export function validateShow(show: Show, timing: TimingResult, totals: Totals): 
   }
 
   for (const [addr, pins] of addressPins) {
-    const label = describeAddress(addr, modules).label;
+    const label = describeAddress(ctrl, modules, addr).label;
     if (!addressInRange(ctrl, modules, addr)) {
       issues.push({ level: 'error', message: `${label} is outside the controller's range.` });
     }

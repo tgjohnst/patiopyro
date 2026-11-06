@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { channelAddressId, cueDistrict, flatAddressId, moduleAddressId, pinAddress } from '../model/addressing';
+import { channelAddressId, cueDistrict, describeAddress, flatAddressId, moduleAddressId, pinAddress } from '../model/addressing';
 import {
   assortmentStats,
   costPerSecond,
@@ -771,6 +771,22 @@ describe('districts', () => {
     const cobra = controllerFromPreset(presetById('cobra'));
     expect(cueDistrict(cobra, channelAddressId(7, 3))).toMatchObject({ key: 'ch7', label: 'Channel 7' });
     expect(cueDistrict(controllerFromPreset(presetById('ignite')), moduleAddressId('m', 1))).toBeNull();
+  });
+
+  it('adds the place in the district to numbered cues only', () => {
+    const ctrl = { ...createEmptyShow().firing.controller, cuesPerChannel: 30, cuesPerDistrict: 12 };
+    const label = (id: string) => describeAddress(ctrl, [], id).label;
+    expect(label(flatAddressId(1))).toBe('Cue 1 (1-1)');
+    expect(label(flatAddressId(12))).toBe('Cue 12 (1-12)');
+    expect(label(flatAddressId(13))).toBe('Cue 13 (2-1)');
+    expect(label(flatAddressId(24))).toBe('Cue 24 (2-12)');
+    expect(label(flatAddressId(25))).toBe('Cue 25 (3-1)');
+    expect(describeAddress(ctrl, [], flatAddressId(13))).toMatchObject({ baseLabel: 'Cue 13', districtCue: '2-1' });
+    expect(describeAddress({ ...ctrl, cuesPerDistrict: 0 }, [], flatAddressId(13)).label).toBe('Cue 13');
+    const cobra = controllerFromPreset(presetById('cobra'));
+    expect(describeAddress(cobra, [], channelAddressId(7, 3)).label).toBe('Ch 7 · Cue 3');
+    const ignite = controllerFromPreset(presetById('ignite'));
+    expect(describeAddress(ignite, [], moduleAddressId('m', 1)).label).toBe('? · Cue 1');
   });
 
   it('labels each cue in the cue list and defaults older files to no districts', () => {
