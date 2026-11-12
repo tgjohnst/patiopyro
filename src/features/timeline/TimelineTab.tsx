@@ -3,8 +3,9 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { Badge, Button, EmptyState, Field, NumberInput, Select, TextInput } from '../../components/ui';
 import { buildCueList, type CueEntry } from '../../engine/cues';
 import { MIN_SCENE_SEC, clampSceneRange, moveSceneIn, sceneAt, sceneGap, sceneRangeForCues } from '../../engine/scenes';
+import { binIntensity } from '../../engine/intensity';
 import { computeTiming, type EffectTiming } from '../../engine/timing';
-import { formatTime } from '../../lib/format';
+import { formatMoney, formatTime } from '../../lib/format';
 import type { Show } from '../../model/schema';
 import {
   addScene,
@@ -19,12 +20,18 @@ import {
   updateSettings,
 } from '../../store/actions';
 import { useShow } from '../../store/showStore';
+import { useUi, type TimelineGraph } from '../../store/uiStore';
+import { GRAPH_H, GraphRow } from './GraphRow';
 
 const HEADER_W = 200;
 const RULER_H = 30;
 const SCENE_STRIP_H = 26;
 const LANE_H = 14;
 const ROW_PAD = 8;
+const BIN_OPTIONS = [1, 2, 5, 10, 15, 30, 60];
+const GRAPH_COLORS: Record<TimelineGraph, string> = { shots: '#f97316', cost: '#10b981' };
+const formatShots = (n: number) => (n > 0 && n < 10 ? n.toFixed(1).replace(/\.0$/, '') : String(Math.round(n)));
+
 /** Gutter before 0:00 so markers at the start aren't clipped. */
 const GUTTER = 16;
 
@@ -115,6 +122,10 @@ export function TimelineTab() {
   const [playhead, setPlayhead] = useState(0);
   const [playing, setPlaying] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const binSec = useUi((s) => s.graphBinSec);
+  const graphs = useUi((s) => s.graphs);
+  const setGraphBinSec = useUi((s) => s.setGraphBinSec);
+  const toggleGraph = useUi((s) => s.toggleGraph);
   const rowsRef = useRef<HTMLDivElement>(null);
 
   // Live preview while dragging: recompute timing with the dragged cue times.
@@ -176,6 +187,11 @@ export function TimelineTab() {
   const width = duration * pps + GUTTER * 2;
   const x = (t: number) => GUTTER + t * pps;
   const w = (dt: number) => dt * pps;
+  const bins = useMemo(
+    () => binIntensity(timing.effects, preview, binSec, duration),
+    [timing.effects, preview, binSec, duration],
+  );
+  const shownGraphs = (['shots', 'cost'] as const).filter((g) => graphs[g]);
 
   // Playback
   useEffect(() => {
@@ -409,6 +425,41 @@ export function TimelineTab() {
             className="mt-2 w-40 accent-amber-500"
           />
         </Field>
+        <div role="group" aria-label="Graphs" className="flex flex-col gap-1 text-xs">
+          <span className="font-medium text-slate-400">Graphs</span>
+          <div className="flex gap-1">
+            {(['shots', 'cost'] as const).map((g) => (
+              <button
+                key={g}
+                type="button"
+                aria-pressed={graphs[g]}
+                onClick={() => toggleGraph(g)}
+                className={clsx(
+                  'flex h-8 items-center gap-1.5 rounded-md border px-2 text-xs',
+                  graphs[g]
+                    ? 'border-slate-600 bg-slate-800 text-slate-100'
+                    : 'border-slate-800 text-slate-500 hover:text-slate-300',
+                )}
+                title={graphs[g] ? `Hide the ${g} graph` : `Show the ${g} graph`}
+              >
+                <span
+                  className="h-2 w-2 rounded-sm"
+                  style={{ background: graphs[g] ? GRAPH_COLORS[g] : 'transparent', outline: `1px solid ${GRAPH_COLORS[g]}` }}
+                />
+                {g === 'shots' ? 'Shots' : 'Cost'}
+              </button>
+            ))}
+          </div>
+        </div>
+        {shownGraphs.length > 0 && (
+          <Field label="Bin">
+            <Select
+              value={String(binSec)}
+              onChange={(v) => setGraphBinSec(Number(v))}
+              options={BIN_OPTIONS.map((v) => ({ value: String(v), label: `${v}s` }))}
+            />
+          </Field>
+        )}
         <Button
           disabled={!newSceneRange}
           title={
@@ -523,6 +574,28 @@ export function TimelineTab() {
               )}
             </div>
           </div>
+
+          {/* Shots and cost over time */}
+          {shownGraphs.map((g, i) => (
+            <GraphRow
+              key={g}
+              label={g === 'shots' ? 'Shots' : 'Cost'}
+              unit={`per ${binSec}s`}
+              color={GRAPH_COLORS[g]}
+              bins={bins}
+              value={(b) => b[g]}
+              format={g === 'shots' ? formatShots : formatMoney}
+              top={RULER_H + SCENE_STRIP_H + i * GRAPH_H}
+              headerW={HEADER_W}
+              width={width}
+              x={x}
+              w={w}
+              playhead={playhead}
+              onSeek={setPlayhead}
+              onHide={() => toggleGraph(g)}
+              testId={`graph-${g}`}
+            />
+          ))}
 
           {/* Rows */}
           <div ref={rowsRef} className="relative">
