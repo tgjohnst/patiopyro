@@ -60,12 +60,17 @@ const box = <span className="mr-2 inline-block h-3.5 w-3.5 shrink-0 translate-y-
 export function SiteThumb({ show, className = 'h-64 w-full' }: { show: Show; className?: string }) {
   const { siteMap: s, positions } = show;
   const pad = 4;
+  // Frame the site and every position's safety circle, so nothing is cut off at the edges.
+  const minX = Math.min(0, ...positions.map((p) => p.x - p.safetyRadiusFt)) - pad;
+  const minY = Math.min(0, ...positions.map((p) => p.y - p.safetyRadiusFt)) - pad;
+  const maxX = Math.max(s.widthFt, ...positions.map((p) => p.x + p.safetyRadiusFt)) + pad;
+  const maxY = Math.max(s.heightFt, ...positions.map((p) => p.y + p.safetyRadiusFt)) + pad;
   // Text sized to the site, so labels stay readable in a small thumbnail of a big yard.
   const f = Math.max(3, Math.max(s.widthFt, s.heightFt) / 24);
   // Labels get a white outline so they stay readable over a background photo.
   const halo = { stroke: '#fff', strokeWidth: f * 0.3, strokeLinejoin: 'round', paintOrder: 'stroke' } as const;
   return (
-    <svg viewBox={`${-pad} ${-pad} ${s.widthFt + pad * 2} ${s.heightFt + pad * 2}`} className={className} data-testid="site-thumb">
+    <svg viewBox={`${minX} ${minY} ${maxX - minX} ${maxY - minY}`} className={className} data-testid="site-thumb">
       {s.backgroundDataUrl && (
         <image
           href={s.backgroundDataUrl}

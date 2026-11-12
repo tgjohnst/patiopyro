@@ -134,61 +134,61 @@ function AtAGlance({ show, o, options }: { show: Show; o: ShowOverview; options:
         )}
       </div>
 
-      <div className="avoid-break mt-3">
-        <div className="mb-1 flex items-baseline justify-between gap-4">
-          <h2 className="text-xl font-bold">How the show builds</h2>
-          <div className="text-xs text-zinc-600">
-            Shots and fireworks cost every {o.binSec} s{show.scenes.length > 0 && ', colored by the scene that fires them · bands: scenes'}
-          </div>
-        </div>
-        <BuildChart o={o} scenes={show.scenes} showPrices={options.cost} />
-      </div>
-
-      <div className="avoid-break mt-3 grid grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] gap-7">
-        {o.scenes.length > 0 ? (
-          <div data-testid="overview-scene-list">
-            <h2 className="mb-1.5 text-xl font-bold">{plural(o.scenes.length, 'scene')}</h2>
-            {o.scenes.map((s) => (
-              <div
-                key={s.scene.id}
-                className="grid grid-cols-[14px_minmax(0,1fr)_88px_70px_90px] items-center gap-2.5 border-b border-zinc-200 py-1 text-sm"
-              >
-                <span className="h-3.5 w-3.5 rounded-sm" style={{ background: s.scene.color }} />
-                <span className="truncate font-semibold">{s.scene.name}</span>
-                <span className="text-zinc-700 tabular-nums">{range(s.scene)}</span>
-                <span className="text-right tabular-nums">{count(s.shots)}</span>
-                <span className="h-2 overflow-hidden rounded bg-zinc-100">
-                  <span
-                    className="block h-full"
-                    style={{ width: `${o.shots ? (s.shots / o.shots) * 100 : 0}%`, background: s.scene.color }}
-                  />
-                </span>
-              </div>
-            ))}
-            <div className="mt-1 text-xs text-zinc-600">Columns: time · shots · share of all shots</div>
-          </div>
-        ) : (
+      {/* Left: how the show builds and its scenes. Right: the site, as big as the column allows. */}
+      <div className="avoid-break mt-3 grid grid-cols-2 gap-7">
+        <div className="flex min-w-0 flex-col gap-4">
           <div>
-            <h2 className="mb-1.5 text-xl font-bold">Most shots</h2>
-            {o.lineup
-              .flatMap((g) => g.rows)
-              .sort((a, b) => b.shots - a.shots)
-              .slice(0, 6)
-              .map((r) => (
-                <div key={r.item.id} className="flex justify-between gap-3 border-b border-zinc-200 py-1.5 text-sm">
-                  <span>
-                    <span className="font-semibold">{r.item.name}</span>{' '}
-                    <span className="text-zinc-600">{describeProduct(r.item)}</span>
+            <h2 className="text-xl font-bold">How the show builds</h2>
+            <div className="mb-1 text-xs text-zinc-600">
+              Shots and fireworks cost every {o.binSec} s{show.scenes.length > 0 && ', colored by the scene that fires them · bands: scenes'}
+            </div>
+            <BuildChart o={o} scenes={show.scenes} showPrices={options.cost} />
+          </div>
+          {o.scenes.length > 0 ? (
+            <div data-testid="overview-scene-list">
+              <h2 className="mb-1.5 text-xl font-bold">{plural(o.scenes.length, 'scene')}</h2>
+              {o.scenes.map((s) => (
+                <div
+                  key={s.scene.id}
+                  className="grid grid-cols-[14px_minmax(0,1fr)_88px_70px_90px] items-center gap-2.5 border-b border-zinc-200 py-1 text-sm"
+                >
+                  <span className="h-3.5 w-3.5 rounded-sm" style={{ background: s.scene.color }} />
+                  <span className="truncate font-semibold">{s.scene.name}</span>
+                  <span className="text-zinc-700 tabular-nums">{range(s.scene)}</span>
+                  <span className="text-right tabular-nums">{count(s.shots)}</span>
+                  <span className="h-2 overflow-hidden rounded bg-zinc-100">
+                    <span
+                      className="block h-full"
+                      style={{ width: `${o.shots ? (s.shots / o.shots) * 100 : 0}%`, background: s.scene.color }}
+                    />
                   </span>
-                  <span className="tabular-nums">{plural(r.shots, 'shot')}</span>
                 </div>
               ))}
-          </div>
-        )}
-        <div>
+              <div className="mt-1 text-xs text-zinc-600">Columns: time · shots · share of all shots</div>
+            </div>
+          ) : (
+            <div>
+              <h2 className="mb-1.5 text-xl font-bold">Most shots</h2>
+              {o.lineup
+                .flatMap((g) => g.rows)
+                .sort((a, b) => b.shots - a.shots)
+                .slice(0, 6)
+                .map((r) => (
+                  <div key={r.item.id} className="flex justify-between gap-3 border-b border-zinc-200 py-1.5 text-sm">
+                    <span>
+                      <span className="font-semibold">{r.item.name}</span>{' '}
+                      <span className="text-zinc-600">{describeProduct(r.item)}</span>
+                    </span>
+                    <span className="tabular-nums">{plural(r.shots, 'shot')}</span>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+        <div className="flex min-w-0 flex-col" data-testid="overview-site">
           <h2 className="mb-1.5 text-xl font-bold">Where it happens</h2>
-          <div className="rounded-lg border border-zinc-300 p-1">
-            <SiteThumb show={show} className="h-32 w-full" />
+          <div className="relative min-h-60 flex-1 rounded-lg border border-zinc-300">
+            <SiteThumb show={show} className="absolute inset-1 h-[calc(100%-0.5rem)] w-[calc(100%-0.5rem)]" />
           </div>
           {o.nearestFt !== null && (
             <div className="mt-1 text-xs text-zinc-600">
@@ -208,7 +208,7 @@ const percent = (n: number, total: number) => {
 };
 
 /** The left-hand label column of the chart; rows without one get an empty spacer. */
-const GUTTER = 'grid grid-cols-[72px_minmax(0,1fr)] gap-x-2';
+const GUTTER = 'grid grid-cols-[60px_minmax(0,1fr)] gap-x-2';
 
 /** One row of bars over time, colored by scene, with a callout on its tallest bar. */
 function BarRow({
@@ -225,7 +225,7 @@ function BarRow({
   testId,
 }: {
   label: string;
-  sub: string;
+  sub: ReactNode;
   o: ShowOverview;
   values: number[];
   sceneIds: (string | null)[];
@@ -266,7 +266,7 @@ function BarRow({
         )}
         {peak && top > 0 && (
           <div
-            className="absolute top-0 rounded border border-zinc-900 bg-white px-1.5 py-0.5 text-xs leading-tight"
+            className="absolute top-0 rounded border border-zinc-900 bg-white px-1.5 py-0.5 text-xs leading-tight whitespace-nowrap"
             style={{
               left: `${peakPct * 100}%`,
               transform: peakPct > 0.5 ? 'translateX(calc(-100% - 10px))' : 'translateX(10px)',
@@ -336,7 +336,17 @@ function BuildChart({ o, scenes, showPrices }: { o: ShowOverview; scenes: Scene[
       />
       <BarRow
         label="Cost"
-        sub={showPrices ? per : `share, ${per}`}
+        sub={
+          showPrices ? (
+            per
+          ) : (
+            <>
+              share
+              <br />
+              {per}
+            </>
+          )
+        }
         o={o}
         values={o.bins.map((b) => b.cost)}
         sceneIds={o.binCostSceneIds}
