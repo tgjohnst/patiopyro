@@ -46,15 +46,17 @@ export function Overview({ options }: { options: OverviewOptions }) {
   const scenes = options.scenes && o.scenes.length > 0;
   const lineup = options.lineup && o.lineup.length > 0;
   const breakdown = options.cost || o.lineup.length > 0;
+  const portrait = options.orientation === 'portrait';
 
   return (
-    <div className="overview mx-auto max-w-[1000px] bg-white p-8 print:max-w-none print:p-0 text-[15px] leading-snug text-zinc-900" data-testid="overview">
+    // The preview takes the printed page's proportions: narrower for portrait.
+    <div className={`overview mx-auto ${portrait ? 'max-w-[720px]' : 'max-w-[1000px]'} bg-white p-8 print:max-w-none print:p-0 text-[15px] leading-snug text-zinc-900`} data-testid="overview">
       <AtAGlance show={show} o={o} options={options} />
       {scenes && <ScenesSection show={show} o={o} options={options} />}
       {lineup && <LineupSection show={show} o={o} options={options} />}
       {(breakdown || options.safety) && (
-        <div className={`break-before grid gap-10 ${breakdown && options.safety ? 'grid-cols-2' : 'grid-cols-1'}`}>
-          {breakdown && <BreakdownSection show={show} o={o} cost={options.cost} wide={!options.safety} />}
+        <div className={`break-before grid gap-10 ${breakdown && options.safety && !portrait ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          {breakdown && <BreakdownSection show={show} o={o} cost={options.cost} wide={!options.safety && !portrait} />}
           {options.safety && <SafetySection show={show} o={o} />}
         </div>
       )}
@@ -90,11 +92,12 @@ function Dot({ color, size = 10 }: { color: string; size?: number }) {
 // ---------- pages 1–3: at a glance ----------
 
 function AtAGlance({ show, o, options }: { show: Show; o: ShowOverview; options: OverviewOptions }) {
+  const portrait = options.orientation === 'portrait';
   return (
     <>
-      <CoverPage show={show} o={o} />
-      <BuildPage show={show} o={o} options={options} />
-      <WherePage show={show} o={o} />
+      <CoverPage show={show} o={o} portrait={portrait} />
+      <BuildPage show={show} o={o} options={options} portrait={portrait} />
+      <WherePage show={show} o={o} portrait={portrait} />
     </>
   );
 }
@@ -127,7 +130,7 @@ function Logo({ size = 44 }: { size?: number }) {
 }
 
 /** Page 1: the brand, the show's name, when and where, how long, and what it's about. */
-function CoverPage({ show, o }: { show: Show; o: ShowOverview }) {
+function CoverPage({ show, o, portrait }: { show: Show; o: ShowOverview; portrait: boolean }) {
   const { meta } = show;
   const start = formatClock(meta.startTime);
   const end = formatClock(meta.startTime, o.durationSec);
@@ -145,12 +148,13 @@ function CoverPage({ show, o }: { show: Show; o: ShowOverview }) {
         </div>
       </div>
 
-      <div className="flex items-end justify-between gap-10 pt-6">
+      {/* Portrait stacks the run time under the name, which then gets the page's full width. */}
+      <div className={portrait ? 'flex flex-col gap-8 pt-10' : 'flex items-end justify-between gap-10 pt-6'}>
         <div className="flex min-w-0 flex-col gap-3">
           <h1 className="text-[56px] leading-[1.05] font-bold">{meta.name}</h1>
           {byline && <div className="text-lg text-zinc-700">{byline}</div>}
         </div>
-        <div className="flex shrink-0 flex-col items-end">
+        <div className={`flex shrink-0 flex-col ${portrait ? 'items-start' : 'items-end'}`}>
           <div className="text-[72px] leading-none font-bold tabular-nums" data-testid="overview-runtime">
             {formatTime(o.durationSec, 0)}
           </div>
@@ -215,7 +219,7 @@ function lastMinuteShare(o: ShowOverview): number | null {
 }
 
 /** Page 2: shots and cost over time, full width, with the show's numbers. */
-function BuildPage({ show, o, options }: { show: Show; o: ShowOverview; options: OverviewOptions }) {
+function BuildPage({ show, o, options, portrait }: { show: Show; o: ShowOverview; options: OverviewOptions; portrait: boolean }) {
   const minutes = o.durationSec / 60;
   const lull = longestLull(o);
   const finale = lastMinuteShare(o);
@@ -231,7 +235,7 @@ function BuildPage({ show, o, options }: { show: Show; o: ShowOverview; options:
         <BuildChart o={o} scenes={show.scenes} showPrices={options.cost} />
       </div>
 
-      <div className="mt-5 grid grid-cols-5 gap-3" data-testid="overview-stats">
+      <div className={`mt-5 grid gap-3 ${portrait ? 'grid-cols-2' : 'grid-cols-5'}`} data-testid="overview-stats">
         <Tile label="Shots" value={count(o.shots)} />
         <Tile label="Fireworks fired" value={count(o.pieces)} />
         <Tile label="Different products" value={count(o.products)} />
@@ -261,11 +265,14 @@ function BuildPage({ show, o, options }: { show: Show; o: ShowOverview; options:
   );
 }
 
-/** Page 3: the scenes in order beside the site map, as big as the page allows. */
-function WherePage({ show, o }: { show: Show; o: ShowOverview }) {
+/** Page 3: the scenes in order beside the site map (above it, in portrait), as big as the page allows. */
+function WherePage({ show, o, portrait }: { show: Show; o: ShowOverview; portrait: boolean }) {
   const u = show.settings.units;
   return (
-    <section className="break-before grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-8" data-testid="overview-where">
+    <section
+      className={`break-before grid gap-8 ${portrait ? 'grid-cols-1' : 'grid-cols-[minmax(0,2fr)_minmax(0,3fr)]'}`}
+      data-testid="overview-where"
+    >
       {o.scenes.length > 0 ? (
         <div data-testid="overview-scene-list">
           <SectionTitle>{plural(o.scenes.length, 'scene')}</SectionTitle>
@@ -304,7 +311,7 @@ function WherePage({ show, o }: { show: Show; o: ShowOverview }) {
       )}
       <div className="flex min-w-0 flex-col" data-testid="overview-site">
         <SectionTitle>Where it happens</SectionTitle>
-        <div className="relative h-[140mm] rounded-lg border border-zinc-300">
+        <div className={`relative rounded-lg border border-zinc-300 ${portrait ? 'h-[120mm]' : 'h-[140mm]'}`}>
           <SiteThumb show={show} className="absolute inset-1 h-[calc(100%-0.5rem)] w-[calc(100%-0.5rem)]" />
         </div>
         {o.nearestFt !== null && (

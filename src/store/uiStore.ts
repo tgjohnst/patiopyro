@@ -15,6 +15,7 @@ export interface OverviewOptions {
   /** Product links, with a QR code for each on paper. */
   links: boolean;
   paper: 'letter' | 'a4';
+  orientation: 'landscape' | 'portrait';
 }
 
 export const DEFAULT_OVERVIEW: OverviewOptions = {
@@ -24,6 +25,7 @@ export const DEFAULT_OVERVIEW: OverviewOptions = {
   safety: false,
   links: true,
   paper: 'letter',
+  orientation: 'landscape',
 };
 
 interface UiState {

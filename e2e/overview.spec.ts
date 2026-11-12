@@ -118,12 +118,24 @@ test('show overview: new show fields, sections to choose, prints landscape acros
   expect(pages).toBeGreaterThanOrEqual(4);
   await page.emulateMedia({ media: 'screen' });
 
+  // Portrait: the same sections on taller, narrower pages.
+  await page.getByRole('button', { name: '🖨 Show overview PDF' }).click();
+  await page.getByTestId('overview-dialog').getByLabel('Portrait').check();
+  await page.getByRole('button', { name: /Print \/ save PDF/ }).click();
+  await page.waitForFunction(() => (window as unknown as { __printed: number }).__printed === 2);
+  expect(await printed.locator('style').textContent()).toContain('size: a4 portrait');
+  await page.emulateMedia({ media: 'print' });
+  const portraitPdf = await page.pdf({ path: 'test-results/shots/overview-portrait.pdf', preferCSSPageSize: true });
+  expect(portraitPdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
+  await page.emulateMedia({ media: 'screen' });
+
   // The choices are remembered.
   await page.reload();
   await page.getByRole('button', { name: /^Reports/ }).click();
   await page.getByRole('button', { name: '🖨 Show overview PDF' }).click();
   await expect(page.getByTestId('overview-dialog').getByLabel(/^Cost/)).toBeChecked();
   await expect(page.getByTestId('overview-dialog').getByLabel('A4')).toBeChecked();
+  await expect(page.getByTestId('overview-dialog').getByLabel('Portrait')).toBeChecked();
 
   expect(errors).toEqual([]);
 });

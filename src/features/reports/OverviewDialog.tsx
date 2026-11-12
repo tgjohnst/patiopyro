@@ -122,7 +122,20 @@ export function OverviewDialog({ onClose }: { onClose: () => void }) {
                   {p === 'letter' ? 'Letter' : 'A4'}
                 </label>
               ))}
-              <span className="text-xs text-slate-500">landscape</span>
+            </div>
+            <div className="flex h-8 items-center gap-4 text-sm text-slate-200">
+              {(['landscape', 'portrait'] as const).map((r) => (
+                <label key={r} className="flex cursor-pointer items-center gap-1.5">
+                  <input
+                    type="radio"
+                    name="overview-orientation"
+                    className="accent-amber-500"
+                    checked={options.orientation === r}
+                    onChange={() => setOverview({ orientation: r })}
+                  />
+                  {r === 'landscape' ? 'Landscape' : 'Portrait'}
+                </label>
+              ))}
             </div>
           </fieldset>
         </div>
