@@ -29,6 +29,21 @@ test('show overview: new show fields, sections to choose, prints landscape acros
   await page.getByLabel('Web link').fill('example.com/night-owl');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
 
+  // A site photo shows under the overview's site map.
+  await page.getByRole('button', { name: 'Site Map', exact: true }).click();
+  const photo = await page.evaluate(() => {
+    const c = document.createElement('canvas');
+    c.width = 40;
+    c.height = 30;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#4d7c0f';
+    g.fillRect(0, 0, 40, 30);
+    return c.toDataURL('image/png').split(',')[1];
+  });
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Add background image' }).click();
+  await (await chooser).setFiles({ name: 'yard.png', mimeType: 'image/png', buffer: Buffer.from(photo, 'base64') });
+
   await page.getByRole('button', { name: /^Reports/ }).click();
   await page.getByRole('button', { name: 'Show overview', exact: true }).click();
   const doc = page.getByTestId('overview');
@@ -38,6 +53,10 @@ test('show overview: new show fields, sections to choose, prints landscape acros
   await expect(page.getByTestId('overview-description')).toContainText('Bring a chair');
   await expect(page.getByTestId('overview-chart')).toContainText('Finale');
   await expect(page.getByTestId('overview-peak')).toContainText(/Busiest at \d:\d\d/);
+  // Cost over time sits under the shots, as a share while prices are off.
+  await expect(page.getByTestId('overview-cost-peak')).toContainText(/Most spent at \d:\d\d/);
+  await expect(page.getByTestId('overview-cost-peak')).toContainText('% of the cost');
+  await expect(page.getByTestId('overview-glance').getByTestId('site-thumb').locator('image')).toHaveAttribute('href', /^data:image\/png/);
   await expect(page.getByTestId('overview-scene-list')).toContainText('4 scenes');
   await expect(page.getByTestId('overview-scene')).toHaveCount(4);
   await expect(page.getByTestId('overview-scene').first()).toContainText('Two crackling cakes to get everyone looking up.');
@@ -47,11 +66,16 @@ test('show overview: new show fields, sections to choose, prints landscape acros
   await expect(owl).toContainText('Golden');
   await expect(owl.getByRole('link', { name: 'Night Owl' })).toHaveAttribute('href', 'https://example.com/night-owl');
   await expect(owl.getByRole('img', { name: /QR code/ })).toBeVisible();
-  // Cost is off by default: no prices anywhere, and no cost or safety sections.
+  // Cost is off by default: no prices anywhere, no cost totals and no safety section, but the
+  // breakdown by scene and by kind still prints, as shares.
   await expect(doc).not.toContainText('$');
   await expect(page.getByTestId('overview-stats')).toContainText('Busiest moment');
   await expect(page.getByTestId('overview-cost')).toHaveCount(0);
   await expect(page.getByTestId('overview-safety')).toHaveCount(0);
+  await expect(page.getByTestId('overview-breakdown').getByRole('heading', { level: 2 })).toHaveText('Breakdown');
+  await expect(page.getByTestId('overview-by-scene')).toContainText('Finale');
+  await expect(page.getByTestId('overview-by-scene')).toContainText('%');
+  await expect(page.getByTestId('overview-by-kind')).toContainText('Cakes');
   await page.screenshot({ path: 'test-results/shots/overview-preview.png', fullPage: true });
 
   // Choose sections: the preview follows along.
@@ -59,7 +83,10 @@ test('show overview: new show fields, sections to choose, prints landscape acros
   const dialog = page.getByTestId('overview-dialog');
   await dialog.getByLabel(/^Cost/).check();
   await dialog.getByLabel(/^Safety and site/).check();
-  await expect(page.getByTestId('overview-cost')).toContainText('By kind');
+  await expect(page.getByTestId('overview-cost')).toContainText('Per shot');
+  await expect(page.getByTestId('overview-breakdown').getByRole('heading', { level: 2 })).toHaveText('Cost');
+  await expect(page.getByTestId('overview-by-kind')).toContainText('$');
+  await expect(page.getByTestId('overview-cost-peak')).toContainText('$');
   await expect(page.getByTestId('overview-stats')).toContainText('Fireworks cost');
   await expect(owl).toContainText('$45.00');
   const safety = page.getByTestId('overview-safety');
@@ -78,6 +105,11 @@ test('show overview: new show fields, sections to choose, prints landscape acros
   const printed = page.locator('.print-root');
   await expect(printed.getByTestId('overview')).toBeAttached();
   expect(await printed.locator('style').textContent()).toContain('size: a4 landscape');
+  // Scene tags, color dots and share bars are backgrounds, which browsers drop when printing unless told not to.
+  await page.emulateMedia({ media: 'print' });
+  const tag = printed.getByTestId('overview-product').filter({ hasText: 'Night Owl' }).locator('span.text-white').first();
+  expect(await tag.evaluate((el) => getComputedStyle(el).printColorAdjust)).toBe('exact');
+  await page.emulateMedia({ media: 'screen' });
   await page.emulateMedia({ media: 'print' });
   const pdf = await page.pdf({ path: 'test-results/shots/overview.pdf', preferCSSPageSize: true });
   const pages = pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g)?.length ?? 0;

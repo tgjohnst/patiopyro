@@ -86,8 +86,12 @@ export interface ShowOverview {
    * still counts for that scene.
    */
   binSceneIds: (string | null)[];
+  /** Per bin, the scene that spends the most in it, like binSceneIds but by cost. */
+  binCostSceneIds: (string | null)[];
   /** The busiest bin, or null for a show with no shots. */
   peak: IntensityBin | null;
+  /** The bin with the most spent in it, or null for a show that costs nothing. */
+  costPeak: IntensityBin | null;
   scenes: OverviewScene[];
   /** Shots and cost fired outside every scene, when the show has scenes. */
   unscened: { shots: number; cost: number };
@@ -205,16 +209,19 @@ export function buildOverview(show: Show, timing: TimingResult): ShowOverview {
     id: s.scene.id,
     bins: binIntensity(effects.filter((e) => sceneOf(e)?.id === s.scene.id), show, binSec, durationSec),
   }));
-  const binSceneIds = bins.map((_, i) => {
-    let best: { id: string; shots: number } | null = null;
-    for (const s of sceneBins) {
-      const shots = s.bins[i]?.shots ?? 0;
-      if (shots > 0 && shots > (best?.shots ?? 0)) best = { id: s.id, shots };
-    }
-    // Shots outside every scene win the bin when they outnumber each scene's.
-    const outsideShots = bins[i].shots - sceneBins.reduce((n, s) => n + (s.bins[i]?.shots ?? 0), 0);
-    return best && best.shots >= outsideShots ? best.id : null;
-  });
+  /** Per bin, the scene that fires the most of a metric in it; shots outside every scene win when they outnumber each scene's. */
+  const dominantScenes = (k: 'shots' | 'cost') =>
+    bins.map((bin, i) => {
+      let best: { id: string; v: number } | null = null;
+      for (const s of sceneBins) {
+        const v = s.bins[i]?.[k] ?? 0;
+        if (v > 0 && v > (best?.v ?? 0)) best = { id: s.id, v };
+      }
+      const outside = bin[k] - sceneBins.reduce((n, s) => n + (s.bins[i]?.[k] ?? 0), 0);
+      return best && best.v >= outside ? best.id : null;
+    });
+  const binSceneIds = dominantScenes('shots');
+  const binCostSceneIds = dominantScenes('cost');
   const outside = scenes.length ? productUses(effects.filter((e) => !sceneOf(e)), byId, show) : [];
 
   const lineup: LineupGroup[] = KIND_ORDER.map((kind) => {
@@ -242,7 +249,7 @@ export function buildOverview(show: Show, timing: TimingResult): ShowOverview {
     })
     .filter((p) => p.pieces > 0);
 
-  const peak = bins.reduce<IntensityBin | null>((best, b) => (b.shots > (best?.shots ?? 0) ? b : best), null);
+  const peakBy = (k: 'shots' | 'cost') => bins.reduce<IntensityBin | null>((best, b) => (b[k] > (best?.[k] ?? 0) ? b : best), null);
 
   return {
     durationSec,
@@ -254,7 +261,9 @@ export function buildOverview(show: Show, timing: TimingResult): ShowOverview {
     binSec,
     bins,
     binSceneIds,
-    peak,
+    binCostSceneIds,
+    peak: peakBy('shots'),
+    costPeak: peakBy('cost'),
     scenes: overviewScenes,
     unscened: { shots: sum(outside, 'shots'), cost: sum(outside, 'cost') },
     lineup,

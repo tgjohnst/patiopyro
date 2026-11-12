@@ -31,7 +31,11 @@ export function OverviewDialog({ onClose }: { onClose: () => void }) {
       detail: 'Every product, with its effects, colors and scenes.',
       unavailable: o.lineup.length === 0 ? 'Nothing is timed yet.' : undefined,
     },
-    { id: 'cost', label: 'Cost', detail: 'Totals and breakdowns, plus prices on every page. Off by default.' },
+    {
+      id: 'cost',
+      label: 'Cost',
+      detail: 'Dollar totals, plus prices on every page. Off by default: the breakdown by scene and kind still prints, as shares.',
+    },
     { id: 'safety', label: 'Safety and site', detail: 'Distances, firing method, crew and contacts. For a venue or neighbors.' },
   ];
 
@@ -74,7 +78,7 @@ export function OverviewDialog({ onClose }: { onClose: () => void }) {
             <input type="checkbox" checked disabled className="mt-0.5 h-4 w-4 accent-amber-500" />
             <span>
               <span className="text-sm font-medium text-slate-200">At a glance</span>
-              <span className="block text-xs text-slate-500">Run time, totals, how the show builds, and the site. Always included.</span>
+              <span className="block text-xs text-slate-500">Run time, totals, shots and cost over time, and the site. Always included.</span>
             </span>
           </label>
           {sections.map((s) => (

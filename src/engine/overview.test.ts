@@ -40,6 +40,8 @@ describe('buildOverview', () => {
 
   it('finds the busiest bin and measures positions to the audience', () => {
     expect(o.peak!.shots).toBe(Math.max(...o.bins.map((b) => b.shots)));
+    expect(o.costPeak!.cost).toBe(Math.max(...o.bins.map((b) => b.cost)));
+    expect(sum(o.bins.map((b) => b.cost))).toBeCloseTo(o.cost, 6);
     expect(o.positions.length).toBeGreaterThan(0);
     expect(o.nearestFt).toBe(Math.min(...o.positions.map((p) => p.audienceFt)));
     expect(sum(o.positions.map((p) => p.pieces))).toBe(o.pieces);
@@ -107,6 +109,18 @@ describe('chart colors', () => {
       const id = o.binSceneIds[i];
       if (b.shots === 0) expect(id).toBeNull();
       else if (o.unscened.shots === 0) expect(ids.has(id!)).toBe(true);
+    });
+  });
+
+  it('colors the cost bars by the scene that spends the most in each bin', () => {
+    const show = createDemoShow();
+    const o = buildOverview(show, computeTiming(show));
+    expect(o.binCostSceneIds).toHaveLength(o.bins.length);
+    const ids = new Set(o.scenes.map((s) => s.scene.id));
+    o.bins.forEach((b, i) => {
+      const id = o.binCostSceneIds[i];
+      if (b.cost === 0) expect(id).toBeNull();
+      else if (o.unscened.cost === 0) expect(ids.has(id!)).toBe(true);
     });
   });
 });

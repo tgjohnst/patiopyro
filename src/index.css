@@ -70,6 +70,12 @@ body {
   .print-root {
     display: block;
   }
+  /* Browsers drop background colors when printing; keep scene tags, color dots and bars. */
+  .print-root,
+  .print-root * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
   .break-before {
     break-before: page;
   }

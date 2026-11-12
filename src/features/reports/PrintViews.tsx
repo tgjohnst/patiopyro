@@ -60,18 +60,33 @@ const box = <span className="mr-2 inline-block h-3.5 w-3.5 shrink-0 translate-y-
 export function SiteThumb({ show, className = 'h-64 w-full' }: { show: Show; className?: string }) {
   const { siteMap: s, positions } = show;
   const pad = 4;
+  // Text sized to the site, so labels stay readable in a small thumbnail of a big yard.
+  const f = Math.max(3, Math.max(s.widthFt, s.heightFt) / 24);
+  // Labels get a white outline so they stay readable over a background photo.
+  const halo = { stroke: '#fff', strokeWidth: f * 0.3, strokeLinejoin: 'round', paintOrder: 'stroke' } as const;
   return (
-    <svg viewBox={`${-pad} ${-pad} ${s.widthFt + pad * 2} ${s.heightFt + pad * 2}`} className={className}>
+    <svg viewBox={`${-pad} ${-pad} ${s.widthFt + pad * 2} ${s.heightFt + pad * 2}`} className={className} data-testid="site-thumb">
+      {s.backgroundDataUrl && (
+        <image
+          href={s.backgroundDataUrl}
+          x={0}
+          y={0}
+          width={s.widthFt}
+          height={s.heightFt}
+          preserveAspectRatio="none"
+          opacity={s.backgroundOpacity}
+        />
+      )}
       <rect x={0} y={0} width={s.widthFt} height={s.heightFt} fill="none" stroke="#999" strokeWidth={0.3} />
       <line x1={s.audience.x1} y1={s.audience.y1} x2={s.audience.x2} y2={s.audience.y2} stroke="#000" strokeWidth={0.6} strokeDasharray="2 1" />
-      <text x={(s.audience.x1 + s.audience.x2) / 2} y={s.audience.y1 + 4} fontSize={2.4} textAnchor="middle">
+      <text x={(s.audience.x1 + s.audience.x2) / 2} y={s.audience.y1 + f * 1.3} fontSize={f * 0.8} textAnchor="middle" {...halo}>
         Audience line
       </text>
       {positions.map((p) => (
         <g key={p.id}>
           <circle cx={p.x} cy={p.y} r={p.safetyRadiusFt} fill="none" stroke={p.color} strokeWidth={0.3} strokeDasharray="1 1" />
-          <circle cx={p.x} cy={p.y} r={2} fill={p.color} />
-          <text x={p.x} y={p.y - 3} fontSize={3} textAnchor="middle" fontWeight={700}>
+          <circle cx={p.x} cy={p.y} r={f * 0.6} fill={p.color} stroke="#fff" strokeWidth={f * 0.12} />
+          <text x={p.x} y={p.y - f * 0.9} fontSize={f} textAnchor="middle" fontWeight={700} {...halo}>
             {p.name}
           </text>
         </g>

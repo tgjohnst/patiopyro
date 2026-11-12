@@ -45,15 +45,16 @@ export function Overview({ options }: { options: OverviewOptions }) {
   const o = useMemo(() => buildOverview(show, timing), [show, timing]);
   const scenes = options.scenes && o.scenes.length > 0;
   const lineup = options.lineup && o.lineup.length > 0;
+  const breakdown = options.cost || o.lineup.length > 0;
 
   return (
     <div className="overview mx-auto max-w-[1000px] bg-white p-8 print:max-w-none print:p-0 text-[15px] leading-snug text-zinc-900" data-testid="overview">
       <AtAGlance show={show} o={o} options={options} />
       {scenes && <ScenesSection show={show} o={o} options={options} />}
       {lineup && <LineupSection show={show} o={o} options={options} />}
-      {(options.cost || options.safety) && (
-        <div className={`break-before grid gap-10 ${options.cost && options.safety ? 'grid-cols-2' : 'grid-cols-1'}`}>
-          {options.cost && <CostSection show={show} o={o} />}
+      {(breakdown || options.safety) && (
+        <div className={`break-before grid gap-10 ${breakdown && options.safety ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          {breakdown && <BreakdownSection show={show} o={o} cost={options.cost} wide={!options.safety} />}
           {options.safety && <SafetySection show={show} o={o} />}
         </div>
       )}
@@ -72,9 +73,9 @@ function SectionTitle({ children, aside }: { children: ReactNode; aside?: ReactN
 
 function Tile({ label, value, sub }: { label: string; value: ReactNode; sub?: ReactNode }) {
   return (
-    <div className="rounded-lg border border-zinc-300 px-3.5 py-2.5">
+    <div className="rounded-lg border border-zinc-300 px-3.5 py-1.5">
       <div className="text-xs text-zinc-600">{label}</div>
-      <div className="text-[26px] font-bold tabular-nums">
+      <div className="text-[24px] leading-tight font-bold tabular-nums">
         {value}
         {sub && <span className="ml-1 text-sm font-medium text-zinc-600">{sub}</span>}
       </div>
@@ -99,14 +100,14 @@ function AtAGlance({ show, o, options }: { show: Show; o: ShowOverview; options:
 
   return (
     <section data-testid="overview-glance">
-      <header className="flex items-end justify-between gap-8 border-b-2 border-zinc-900 pb-4">
-        <div className="flex flex-col gap-1.5">
+      <header className="flex items-end justify-between gap-8 border-b-2 border-zinc-900 pb-3">
+        <div className="flex flex-col gap-1">
           <div className="text-xs font-semibold tracking-[0.14em] text-zinc-600 uppercase">Show overview</div>
-          <h1 className="text-[42px] leading-none font-bold">{meta.name}</h1>
+          <h1 className="text-[36px] leading-none font-bold">{meta.name}</h1>
           {byline && <div className="text-[15px] text-zinc-700">{byline}</div>}
         </div>
         <div className="flex shrink-0 flex-col items-end">
-          <div className="text-[56px] leading-none font-bold tabular-nums" data-testid="overview-runtime">
+          <div className="text-[48px] leading-none font-bold tabular-nums" data-testid="overview-runtime">
             {formatTime(o.durationSec, 0)}
           </div>
           <div className="text-[13px] text-zinc-700">
@@ -116,12 +117,12 @@ function AtAGlance({ show, o, options }: { show: Show; o: ShowOverview; options:
       </header>
 
       {meta.description.trim() && (
-        <p className="mt-4 max-w-[75ch] text-base whitespace-pre-line text-zinc-800" data-testid="overview-description">
+        <p className="mt-3 max-w-[75ch] text-base whitespace-pre-line text-zinc-800" data-testid="overview-description">
           {meta.description.trim()}
         </p>
       )}
 
-      <div className="mt-5 grid grid-cols-5 gap-3" data-testid="overview-stats">
+      <div className="mt-3.5 grid grid-cols-5 gap-3" data-testid="overview-stats">
         <Tile label="Shots" value={count(o.shots)} />
         <Tile label="Fireworks fired" value={count(o.pieces)} />
         <Tile label="Cues" value={count(o.cues)} />
@@ -133,24 +134,24 @@ function AtAGlance({ show, o, options }: { show: Show; o: ShowOverview; options:
         )}
       </div>
 
-      <div className="avoid-break mt-6">
-        <div className="mb-2 flex items-baseline justify-between">
+      <div className="avoid-break mt-3">
+        <div className="mb-1 flex items-baseline justify-between gap-4">
           <h2 className="text-xl font-bold">How the show builds</h2>
           <div className="text-xs text-zinc-600">
-            Bars: shots every {o.binSec} s{show.scenes.length > 0 && ', colored by the scene that fires them · bands: scenes'}
+            Shots and fireworks cost every {o.binSec} s{show.scenes.length > 0 && ', colored by the scene that fires them · bands: scenes'}
           </div>
         </div>
-        <IntensityChart o={o} scenes={show.scenes} />
+        <BuildChart o={o} scenes={show.scenes} showPrices={options.cost} />
       </div>
 
-      <div className="avoid-break mt-6 grid grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] gap-7">
+      <div className="avoid-break mt-3 grid grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] gap-7">
         {o.scenes.length > 0 ? (
           <div data-testid="overview-scene-list">
             <h2 className="mb-1.5 text-xl font-bold">{plural(o.scenes.length, 'scene')}</h2>
             {o.scenes.map((s) => (
               <div
                 key={s.scene.id}
-                className="grid grid-cols-[14px_minmax(0,1fr)_88px_70px_90px] items-center gap-2.5 border-b border-zinc-200 py-1.5 text-sm"
+                className="grid grid-cols-[14px_minmax(0,1fr)_88px_70px_90px] items-center gap-2.5 border-b border-zinc-200 py-1 text-sm"
               >
                 <span className="h-3.5 w-3.5 rounded-sm" style={{ background: s.scene.color }} />
                 <span className="truncate font-semibold">{s.scene.name}</span>
@@ -187,7 +188,7 @@ function AtAGlance({ show, o, options }: { show: Show; o: ShowOverview; options:
         <div>
           <h2 className="mb-1.5 text-xl font-bold">Where it happens</h2>
           <div className="rounded-lg border border-zinc-300 p-1">
-            <SiteThumb show={show} className="h-52 w-full" />
+            <SiteThumb show={show} className="h-32 w-full" />
           </div>
           {o.nearestFt !== null && (
             <div className="mt-1 text-xs text-zinc-600">
@@ -200,78 +201,173 @@ function AtAGlance({ show, o, options }: { show: Show; o: ShowOverview; options:
   );
 }
 
-/** Shots per bin as bars colored by scene, with scene bands above and a time axis below. */
-function IntensityChart({ o, scenes }: { o: ShowOverview; scenes: Scene[] }) {
-  const span = Math.max(o.bins.length * o.binSec, 1);
-  const top = Math.max(o.peak?.shots ?? 0, 1);
-  const pct = (t: number) => `${(Math.min(Math.max(t, 0), span) / span) * 100}%`;
-  const tickStep = [10, 15, 30, 60, 120, 300, 600].find((s) => span / s <= 8) ?? 900;
-  const ticks = Array.from({ length: Math.floor(span / tickStep) + 1 }, (_, i) => i * tickStep).filter((t) => t <= o.durationSec);
-  const peakPct = o.peak ? (o.peak.startSec + o.binSec / 2) / span : 0;
-  const sceneColor = new Map(scenes.map((s) => [s.id, s.color]));
+const pctOf = (n: number, total: number) => (total > 0 ? (n / total) * 100 : 0);
+const percent = (n: number, total: number) => {
+  const p = pctOf(n, total);
+  return p > 0 && p < 1 ? '<1%' : `${Math.round(p)}%`;
+};
 
+/** The left-hand label column of the chart; rows without one get an empty spacer. */
+const GUTTER = 'grid grid-cols-[72px_minmax(0,1fr)] gap-x-2';
+
+/** One row of bars over time, colored by scene, with a callout on its tallest bar. */
+function BarRow({
+  label,
+  sub,
+  o,
+  values,
+  sceneIds,
+  sceneColor,
+  peak,
+  callout,
+  empty,
+  height,
+  testId,
+}: {
+  label: string;
+  sub: string;
+  o: ShowOverview;
+  values: number[];
+  sceneIds: (string | null)[];
+  sceneColor: Map<string, string>;
+  peak: IntensityBin | null;
+  callout: ReactNode;
+  empty: string | null;
+  height: string;
+  testId: string;
+}) {
+  const span = Math.max(o.bins.length * o.binSec, 1);
+  const top = Math.max(...values, 0);
+  const peakPct = peak ? (peak.startSec + o.binSec / 2) / span : 0;
   return (
-    <div data-testid="overview-chart">
-      {scenes.length > 0 && (
-        <div className="relative h-10">
-          {scenes.map((s) => (
-            <div
-              key={s.id}
-              className="absolute top-0 overflow-hidden border-t-[6px] pt-0.5 pr-1 text-xs"
-              style={{ left: pct(s.startSec), width: `calc(${pct(s.endSec)} - ${pct(s.startSec)})`, borderColor: s.color }}
-            >
-              <div className="truncate font-semibold">{s.name}</div>
-              <div className="truncate text-zinc-600 tabular-nums">{range(s)}</div>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="relative h-40 border-b border-zinc-900">
-        {o.shots === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center text-sm text-zinc-600">
-            Nothing is timed yet. Give cues fire times on the Timeline.
-          </div>
+    <div className={GUTTER}>
+      <div className="flex flex-col justify-end pb-0.5 text-right leading-tight">
+        <span className="text-sm font-bold">{label}</span>
+        <span className="text-[11px] text-zinc-600">{sub}</span>
+      </div>
+      <div className={`relative border-b border-zinc-900 ${height}`} data-testid={testId}>
+        {empty && <div className="absolute inset-0 flex items-center justify-center text-sm text-zinc-600">{empty}</div>}
+        {top > 0 && (
+          <svg viewBox={`0 0 ${span} 100`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
+            {o.bins.map((b, i) => {
+              const h = (values[i] / top) * 92;
+              return (
+                <rect
+                  key={b.startSec}
+                  x={b.startSec + o.binSec * 0.08}
+                  width={o.binSec * 0.84}
+                  y={100 - h}
+                  height={h}
+                  fill={sceneColor.get(sceneIds[i] ?? '') ?? NO_SCENE}
+                />
+              );
+            })}
+          </svg>
         )}
-        <svg viewBox={`0 0 ${span} 100`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
-          {o.bins.map((b, i) => {
-            const h = (b.shots / top) * 92;
-            return (
-              <rect
-                key={b.startSec}
-                x={b.startSec + o.binSec * 0.08}
-                width={o.binSec * 0.84}
-                y={100 - h}
-                height={h}
-                fill={sceneColor.get(o.binSceneIds[i] ?? '') ?? NO_SCENE}
-              />
-            );
-          })}
-        </svg>
-        {o.peak && o.peak.shots > 0 && (
+        {peak && top > 0 && (
           <div
             className="absolute top-0 rounded border border-zinc-900 bg-white px-1.5 py-0.5 text-xs leading-tight"
             style={{
               left: `${peakPct * 100}%`,
               transform: peakPct > 0.5 ? 'translateX(calc(-100% - 10px))' : 'translateX(10px)',
             }}
-            data-testid="overview-peak"
+            data-testid={`${testId}-peak`}
           >
-            <strong>Busiest at {formatTime(o.peak.startSec, 0)}</strong>
-            <br />
-            {plural(o.peak.shots, 'shot')} in {o.binSec} seconds
+            {callout}
           </div>
         )}
       </div>
-      <div className="relative h-5 text-xs text-zinc-700 tabular-nums">
-        {ticks.map((t, i) => (
-          <span
-            key={t}
-            className="absolute top-0.5"
-            style={{ left: pct(t), transform: i === 0 ? undefined : 'translateX(-50%)' }}
-          >
-            {formatTime(t, 0)}
-          </span>
-        ))}
+    </div>
+  );
+}
+
+/**
+ * How the show builds: shots per bin and fireworks cost per bin, one above the other on a
+ * shared time axis, with scene bands on top. The two can differ: a few big cakes cost a lot
+ * for few shots. Without prices, the cost row has no dollar amounts, only shares of the whole.
+ */
+function BuildChart({ o, scenes, showPrices }: { o: ShowOverview; scenes: Scene[]; showPrices: boolean }) {
+  const span = Math.max(o.bins.length * o.binSec, 1);
+  const pct = (t: number) => `${(Math.min(Math.max(t, 0), span) / span) * 100}%`;
+  const tickStep = [10, 15, 30, 60, 120, 300, 600].find((s) => span / s <= 8) ?? 900;
+  const ticks = Array.from({ length: Math.floor(span / tickStep) + 1 }, (_, i) => i * tickStep).filter((t) => t <= o.durationSec);
+  const sceneColor = new Map(scenes.map((s) => [s.id, s.color]));
+  const per = `per ${o.binSec} s`;
+
+  return (
+    <div className="flex flex-col gap-1.5" data-testid="overview-chart">
+      {scenes.length > 0 && (
+        <div className={GUTTER}>
+          <span />
+          <div className="relative h-9">
+            {scenes.map((s) => (
+              <div
+                key={s.id}
+                className="absolute top-0 overflow-hidden border-t-[6px] pt-0.5 pr-1 text-xs leading-tight"
+                style={{ left: pct(s.startSec), width: `calc(${pct(s.endSec)} - ${pct(s.startSec)})`, borderColor: s.color }}
+              >
+                <div className="truncate font-semibold">{s.name}</div>
+                <div className="truncate text-zinc-600 tabular-nums">{range(s)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <BarRow
+        label="Shots"
+        sub={per}
+        o={o}
+        values={o.bins.map((b) => b.shots)}
+        sceneIds={o.binSceneIds}
+        sceneColor={sceneColor}
+        peak={o.peak}
+        empty={o.shots === 0 ? 'Nothing is timed yet. Give cues fire times on the Timeline.' : null}
+        height="h-[76px]"
+        testId="overview-peak-shots"
+        callout={
+          o.peak && (
+            <span data-testid="overview-peak">
+              <strong>Busiest at {formatTime(o.peak.startSec, 0)}</strong>
+              <br />
+              {plural(o.peak.shots, 'shot')} in {o.binSec} seconds
+            </span>
+          )
+        }
+      />
+      <BarRow
+        label="Cost"
+        sub={showPrices ? per : `share, ${per}`}
+        o={o}
+        values={o.bins.map((b) => b.cost)}
+        sceneIds={o.binCostSceneIds}
+        sceneColor={sceneColor}
+        peak={o.costPeak}
+        empty={o.shots > 0 && o.cost === 0 ? 'No prices yet. Add them in Inventory.' : null}
+        height="h-16"
+        testId="overview-cost-chart"
+        callout={
+          o.costPeak && (
+            <span data-testid="overview-cost-peak">
+              <strong>Most spent at {formatTime(o.costPeak.startSec, 0)}</strong>
+              <br />
+              {showPrices ? dollars(o.costPeak.cost) : `${percent(o.costPeak.cost, o.cost)} of the cost`} in {o.binSec} seconds
+            </span>
+          )
+        }
+      />
+      <div className={GUTTER}>
+        <span />
+        <div className="relative -mt-1 h-4 text-xs text-zinc-700 tabular-nums">
+          {ticks.map((t, i) => (
+            <span
+              key={t}
+              className="absolute top-0.5"
+              style={{ left: pct(t), transform: i === 0 ? undefined : 'translateX(-50%)' }}
+            >
+              {formatTime(t, 0)}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -489,67 +585,112 @@ function LineupSection({ show, o, options }: { show: Show; o: ShowOverview; opti
 
 // ---------- cost, safety and site ----------
 
-function CostSection({ show, o }: { show: Show; o: ShowOverview }) {
+/** A thin bar showing a share of the whole. */
+function ShareBar({ share, color }: { share: number; color: string }) {
+  return (
+    <span className="h-3 overflow-hidden rounded-sm bg-zinc-100">
+      <span className="block h-full" style={{ width: `${Math.min(share, 100)}%`, background: color }} />
+    </span>
+  );
+}
+
+/**
+ * Where the show's shots and cost go, by scene and by kind. Always printed; without prices
+ * (the Cost option off) it shows shares of the whole instead of dollar amounts.
+ */
+function BreakdownSection({ show, o, cost, wide }: { show: Show; o: ShowOverview; cost: boolean; wide: boolean }) {
   const minutes = o.durationSec / 60;
   const byScene = [
-    ...o.scenes.map((s) => ({ key: s.scene.id, name: s.scene.name, color: s.scene.color, cost: s.cost })),
-    ...(o.unscened.cost > 0 ? [{ key: 'none', name: 'Between scenes', color: NO_SCENE, cost: o.unscened.cost }] : []),
+    ...o.scenes.map((s) => ({ key: s.scene.id, name: s.scene.name, color: s.scene.color, shots: s.shots, cost: s.cost })),
+    ...(o.unscened.shots > 0 || o.unscened.cost > 0
+      ? [{ key: 'none', name: 'Between scenes', color: NO_SCENE, shots: o.unscened.shots, cost: o.unscened.cost }]
+      : []),
   ];
-  const max = Math.max(...byScene.map((s) => s.cost), 1);
-  return (
-    <section data-testid="overview-cost">
-      <SectionTitle>Cost</SectionTitle>
-      <div className="grid grid-cols-3 gap-2.5">
-        <Tile label="Fireworks" value={dollars(o.cost)} />
-        <Tile label="Per minute" value={minutes > 0 ? dollars(o.cost / minutes) : '—'} />
-        <Tile label="Per shot" value={o.shots > 0 ? formatMoney(o.cost / o.shots) : '—'} />
+  const scenes = byScene.length > 0 && (
+    <div className="avoid-break flex flex-col gap-1.5" data-testid="overview-by-scene">
+      <h3 className="text-[15px] font-bold">By scene</h3>
+      <div className="grid grid-cols-[minmax(0,110px)_minmax(0,1fr)_minmax(0,1fr)] gap-x-3 border-b border-zinc-900 pb-1 text-xs text-zinc-600">
+        <span className="font-semibold">Scene</span>
+        <span className="font-semibold">Share of shots</span>
+        <span className="font-semibold">Share of cost</span>
       </div>
-      {byScene.length > 0 && (
-        <div className="avoid-break mt-5 flex flex-col gap-2">
-          <h3 className="text-[15px] font-bold">By scene</h3>
-          {byScene.map((s) => (
-            <div key={s.key} className="grid grid-cols-[120px_minmax(0,1fr)_64px] items-center gap-2.5 text-sm">
-              <span className="truncate font-semibold">{s.name}</span>
-              <span className="h-3.5 overflow-hidden rounded-sm bg-zinc-100">
-                <span className="block h-full" style={{ width: `${(s.cost / max) * 100}%`, background: s.color }} />
-              </span>
-              <span className="text-right tabular-nums">{dollars(s.cost)}</span>
-            </div>
+      {byScene.map((s) => (
+        <div key={s.key} className="grid grid-cols-[minmax(0,110px)_minmax(0,1fr)_minmax(0,1fr)] items-center gap-x-3 text-sm">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: s.color }} />
+            <span className="truncate font-semibold">{s.name}</span>
+          </span>
+          <span className="grid grid-cols-[minmax(0,1fr)_40px] items-center gap-2">
+            <ShareBar share={pctOf(s.shots, o.shots)} color={s.color} />
+            <span className="text-right tabular-nums">{percent(s.shots, o.shots)}</span>
+          </span>
+          <span className={`grid items-center gap-2 ${cost ? 'grid-cols-[minmax(0,1fr)_40px_56px]' : 'grid-cols-[minmax(0,1fr)_40px]'}`}>
+            <ShareBar share={pctOf(s.cost, o.cost)} color={s.color} />
+            <span className="text-right tabular-nums">{percent(s.cost, o.cost)}</span>
+            {cost && <span className="text-right text-zinc-700 tabular-nums">{dollars(s.cost)}</span>}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+  const kinds = (
+    <div className="avoid-break" data-testid="overview-by-kind">
+      <h3 className="mb-1 text-[15px] font-bold">By kind</h3>
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr className="border-b border-zinc-900 text-left text-xs text-zinc-600">
+            <th className="py-1 font-semibold">Kind</th>
+            <th className="text-right font-semibold">Pieces</th>
+            <th className="text-right font-semibold">Shots</th>
+            <th className="text-right font-semibold">Share of cost</th>
+            {cost && <th className="text-right font-semibold">Cost</th>}
+          </tr>
+        </thead>
+        <tbody className="tabular-nums">
+          {o.lineup.map((g) => (
+            <tr key={g.kind} className="border-b border-zinc-200">
+              <td className="py-1.5">{g.label}</td>
+              <td className="text-right">{count(g.pieces)}</td>
+              <td className="text-right">{count(g.shots)}</td>
+              <td className="text-right">{percent(g.cost, o.cost)}</td>
+              {cost && <td className="text-right">{dollars(g.cost)}</td>}
+            </tr>
           ))}
+          <tr className="font-bold">
+            <td className="py-1.5">Total</td>
+            <td className="text-right">{count(o.pieces)}</td>
+            <td className="text-right">{count(o.shots)}</td>
+            <td className="text-right">{o.cost > 0 ? '100%' : '0%'}</td>
+            {cost && <td className="text-right">{dollars(o.cost)}</td>}
+          </tr>
+        </tbody>
+      </table>
+      <p className="mt-2 text-xs text-zinc-600">
+        {cost ? (
+          <>
+            Fireworks only{show.catalog.some((c) => c.kind === 'cake' && c.assortmentId) && ', with assortment prices shared across their cakes'}.
+            Fuse, igniters and supplies are on the cost spreadsheet.
+          </>
+        ) : (
+          'Shares of cost count the fireworks only.'
+        )}
+      </p>
+    </div>
+  );
+
+  return (
+    <section data-testid="overview-breakdown">
+      <SectionTitle aside={!cost && `${plural(o.pieces, 'firework')} · ${plural(o.shots, 'shot')}`}>{cost ? 'Cost' : 'Breakdown'}</SectionTitle>
+      {cost && (
+        <div className="mb-5 grid grid-cols-3 gap-2.5" data-testid="overview-cost">
+          <Tile label="Fireworks" value={dollars(o.cost)} />
+          <Tile label="Per minute" value={minutes > 0 ? dollars(o.cost / minutes) : '—'} />
+          <Tile label="Per shot" value={o.shots > 0 ? formatMoney(o.cost / o.shots) : '—'} />
         </div>
       )}
-      <div className="avoid-break mt-5">
-        <h3 className="mb-1 text-[15px] font-bold">By kind</h3>
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-zinc-900 text-left text-xs text-zinc-600">
-              <th className="py-1 font-semibold">Kind</th>
-              <th className="text-right font-semibold">Pieces</th>
-              <th className="text-right font-semibold">Shots</th>
-              <th className="text-right font-semibold">Cost</th>
-            </tr>
-          </thead>
-          <tbody className="tabular-nums">
-            {o.lineup.map((g) => (
-              <tr key={g.kind} className="border-b border-zinc-200">
-                <td className="py-1.5">{g.label}</td>
-                <td className="text-right">{count(g.pieces)}</td>
-                <td className="text-right">{count(g.shots)}</td>
-                <td className="text-right">{dollars(g.cost)}</td>
-              </tr>
-            ))}
-            <tr className="font-bold">
-              <td className="py-1.5">Total</td>
-              <td className="text-right">{count(o.pieces)}</td>
-              <td className="text-right">{count(o.shots)}</td>
-              <td className="text-right">{dollars(o.cost)}</td>
-            </tr>
-          </tbody>
-        </table>
-        <p className="mt-2 text-xs text-zinc-600">
-          Fireworks only{show.catalog.some((c) => c.kind === 'cake' && c.assortmentId) && ', with assortment prices shared across their cakes'}. Fuse,
-          igniters and supplies are on the cost spreadsheet.
-        </p>
+      <div className={wide ? 'grid grid-cols-2 items-start gap-10' : 'flex flex-col gap-5'}>
+        {scenes}
+        {kinds}
       </div>
     </section>
   );
