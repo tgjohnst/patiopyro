@@ -48,6 +48,17 @@ export function formatTime(sec: number, decimals = 1): string {
   return `${sign}${m}:${restStr}`;
 }
 
+/**
+ * Reads a typed time: "1:23", "1:23.5", "83", "-5", or a lead-in like "T-0:05".
+ * Returns seconds, or null if the text isn't a time.
+ */
+export function parseTime(text: string): number | null {
+  const m = /^(-)?(?:(\d+):)?(\d+(?:\.\d*)?|\.\d+)$/.exec(text.trim().replace(/^t/i, '').replace(/\s+/g, ''));
+  if (!m) return null;
+  const sec = Number(m[2] ?? 0) * 60 + Number(m[3]);
+  return m[1] ? -sec : sec;
+}
+
 export function formatMoney(n: number): string {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 }

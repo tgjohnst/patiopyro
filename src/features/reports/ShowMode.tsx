@@ -1,16 +1,26 @@
 import clsx from 'clsx';
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import { Button } from '../../components/ui';
 import { buildCueList, type CueEntry } from '../../engine/cues';
 import { sceneAt, sceneChangeAt } from '../../engine/scenes';
 import type { EffectTiming } from '../../engine/timing';
-import { formatTime } from '../../lib/format';
+import { formatTime, parseTime } from '../../lib/format';
 import { districtColor, parseAddress, type District } from '../../model/addressing';
-import type { Position } from '../../model/schema';
+import type { Position, Scene } from '../../model/schema';
 import { useDerived, useShow } from '../../store/showStore';
 import { useUi } from '../../store/uiStore';
 
 const LEAD_IN = 10;
+/** Pressing previous cue within this many seconds of a cue goes to the one before it. */
+const PREV_GRACE = 1.5;
 /** Show mode only runs cues that have a fire time. */
 type TimedCue = CueEntry & { time: number };
 
@@ -33,55 +43,110 @@ export function ShowMode() {
   );
   const [running, setRunning] = useState(false);
   const [elapsed, setElapsed] = useState(-LEAD_IN);
-  const base = useRef({ at: 0, from: -LEAD_IN });
+  const [editingTime, setEditingTime] = useState(false);
+  /** The clock: `from` seconds at `at` (performance.now), advancing while running. */
+  const clock = useRef({ at: 0, from: -LEAD_IN, running: false });
   const listRef = useRef<HTMLOListElement>(null);
+  const end = Math.max(timing.showEndSec, cues[cues.length - 1]?.time ?? 0, 1);
+
+  const read = useCallback(() => {
+    const c = clock.current;
+    return c.running ? c.from + (performance.now() - c.at) / 1000 : c.from;
+  }, []);
 
   useEffect(() => {
     if (!running) return;
-    base.current = { at: performance.now(), from: elapsed };
     let raf = 0;
     const tick = () => {
-      setElapsed(base.current.from + (performance.now() - base.current.at) / 1000);
+      setElapsed(read());
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [running]);
+  }, [running, read]);
 
-  const adjust = useCallback((d: number) => {
-    base.current.from += d;
-    setElapsed((e) => e + d);
-  }, []);
+  const play = useCallback(
+    (on: boolean) => {
+      const t = read();
+      clock.current = { at: performance.now(), from: t, running: on };
+      setElapsed(t);
+      setRunning(on);
+    },
+    [read],
+  );
 
-  /** Set the clock to an exact time, whether running or paused. */
-  const seek = useCallback((t: number) => {
-    base.current = { at: performance.now(), from: t };
-    setElapsed(t);
-  }, []);
+  /** Set the clock to an exact time (kept within the lead-in and show end), whether running or paused. */
+  const seek = useCallback(
+    (t: number) => {
+      const to = Math.min(Math.max(t, -LEAD_IN), end);
+      clock.current = { ...clock.current, at: performance.now(), from: to };
+      setElapsed(to);
+    },
+    [end],
+  );
+
+  const adjust = useCallback((d: number) => seek(read() + d), [seek, read]);
+
+  /** Back to the start of the current cue; if that was just now, to the cue before it. */
+  const prevCue = useCallback(() => {
+    const t = read();
+    const before = cues.filter((c) => c.time <= t);
+    const last = before[before.length - 1];
+    if (last && t - last.time > PREV_GRACE) seek(last.time);
+    else seek(before[before.length - 2]?.time ?? -LEAD_IN);
+  }, [cues, read, seek]);
+
+  const nextCue = useCallback(() => {
+    const t = read();
+    const n = cues.find((c) => c.time > t);
+    if (n) seek(n.time);
+  }, [cues, read, seek]);
+
+  const reset = useCallback(() => {
+    play(false);
+    seek(-LEAD_IN);
+  }, [play, seek]);
 
   const nextIdx = cues.findIndex((c) => c.time > elapsed);
   const next = nextIdx >= 0 ? cues[nextIdx] : null;
   const current = nextIdx === -1 ? cues[cues.length - 1] : cues[nextIdx - 1];
   const countdown = next ? next.time - elapsed : null;
-  const nextTime = next?.time ?? null;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      // Typing a time: the box handles its own keys.
+      if (el?.closest('input, textarea, select')) return;
+      const step = e.shiftKey ? 10 : e.altKey ? 0.1 : 1;
       if (e.key === 'Escape') setShowMode(false);
       else if (e.code === 'Space') {
         e.preventDefault();
-        setRunning((r) => !r);
-      } else if (e.key === 'ArrowLeft') adjust(-1);
-      else if (e.key === 'ArrowRight') adjust(1);
-      else if ((e.key === 'n' || e.key === 'N' || e.key === 'PageDown') && nextTime !== null) {
+        // Keep a focused button from also clicking when Space is released.
+        if (el instanceof HTMLButtonElement) el.blur();
+        play(!clock.current.running);
+      } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        seek(nextTime);
+        adjust(-step);
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        adjust(step);
+      } else if (e.key === 'n' || e.key === 'N' || e.key === 'PageDown') {
+        e.preventDefault();
+        nextCue();
+      } else if (e.key === 'p' || e.key === 'P' || e.key === 'PageUp') {
+        e.preventDefault();
+        prevCue();
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        seek(-LEAD_IN);
+      } else if (e.key === 'g' || e.key === 'G') {
+        e.preventDefault();
+        setEditingTime(true);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [setShowMode, adjust, seek, nextTime]);
+  }, [setShowMode, adjust, seek, play, nextCue, prevCue]);
 
   // Keep the upcoming cue visible in the list.
   useEffect(() => {
@@ -100,22 +165,29 @@ export function ShowMode() {
       <div className="flex flex-wrap items-center gap-3 border-b border-slate-800 px-6 py-3">
         <span className="font-bold text-amber-400">SHOW MODE</span>
         <span className="text-slate-400">{show.meta.name}</span>
-        <div className="ml-auto flex flex-wrap gap-2">
-          <Button variant={running ? 'secondary' : 'primary'} onClick={() => setRunning((r) => !r)}>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <Button onClick={prevCue} title="Back to the start of this cue; press again for the cue before (P)">
+            ⏮ Prev cue (P)
+          </Button>
+          <Button onClick={() => adjust(-10)} title="Back 10 seconds (Shift+←)">
+            −10s
+          </Button>
+          <Button onClick={() => adjust(-1)} title="Back 1 second (←)">
+            −1s
+          </Button>
+          <Button variant={running ? 'secondary' : 'primary'} onClick={() => play(!running)}>
             {running ? '❚❚ Pause (Space)' : '▶ Start (Space)'}
           </Button>
-          <Button onClick={() => next && seek(next.time)} disabled={!next} title="Jump the clock to the next cue">
+          <Button onClick={() => adjust(1)} title="Forward 1 second (→)">
+            +1s
+          </Button>
+          <Button onClick={() => adjust(10)} title="Forward 10 seconds (Shift+→)">
+            +10s
+          </Button>
+          <Button onClick={nextCue} disabled={!next} title="Jump the clock to the next cue (N)">
             ⏭ Next cue (N)
           </Button>
-          <Button onClick={() => adjust(-1)}>−1s</Button>
-          <Button onClick={() => adjust(1)}>+1s</Button>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setRunning(false);
-              seek(-LEAD_IN);
-            }}
-          >
+          <Button variant="ghost" onClick={reset} title="Stop and go back to the lead-in (Home)">
             Reset
           </Button>
           <Button variant="danger" onClick={() => setShowMode(false)}>
@@ -124,12 +196,36 @@ export function ShowMode() {
         </div>
       </div>
 
+      <div className="border-b border-slate-800 px-6 py-2">
+        <Scrubber start={-LEAD_IN} end={end} t={elapsed} cues={cues} scenes={show.scenes} onSeek={seek} />
+        <div className="mt-1 text-xs text-slate-500">
+          Drag or click the bar, or a cue in the list, to jump · ←/→ 1s · Shift 10s · Alt 0.1s · P/N previous/next
+          cue · G or click the clock to type a time · Home back to the start
+        </div>
+      </div>
+
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 p-6 lg:grid-cols-[1fr_380px]">
         <div className="flex min-h-0 flex-col items-center gap-4 overflow-y-auto">
           <div className="flex w-full max-w-5xl flex-wrap items-center justify-center gap-6">
-            <div className="font-mono text-6xl text-slate-300 tabular-nums" data-testid="show-clock">
-              {elapsed < 0 ? `T${formatTime(elapsed)}` : formatTime(elapsed)}
-            </div>
+            {editingTime ? (
+              <TimeEntry
+                initial={elapsed}
+                onDone={(t) => {
+                  if (t !== null) seek(t);
+                  setEditingTime(false);
+                }}
+              />
+            ) : (
+              <button
+                type="button"
+                className="rounded-lg px-2 font-mono text-6xl text-slate-300 tabular-nums hover:bg-slate-900"
+                onClick={() => setEditingTime(true)}
+                title="Click to go to a time (G)"
+                data-testid="show-clock"
+              >
+                {showTime(elapsed)}
+              </button>
+            )}
             {show.scenes.length > 0 && (
               <div
                 className="rounded-2xl border-4 px-5 py-2 text-center"
@@ -225,11 +321,13 @@ export function ShowMode() {
                 <li
                   data-cue-idx={i}
                   className={clsx(
-                    'flex items-baseline gap-3 border-b border-slate-900 px-4 py-2',
+                    'flex cursor-pointer items-baseline gap-3 border-b border-slate-900 px-4 py-2 hover:bg-slate-900',
                     i === nextIdx && 'bg-amber-500/20',
                     past && 'text-slate-600',
                   )}
                   style={color ? { borderLeft: `4px solid ${color}` } : undefined}
+                  onClick={() => seek(c.time)}
+                  title={`Jump to ${c.label} at ${formatTime(c.time)}`}
                 >
                   <span className="w-16 font-mono tabular-nums">{formatTime(c.time)}</span>
                   <span className="font-semibold">{c.label}</span>
@@ -248,6 +346,111 @@ export function ShowMode() {
           })}
         </ol>
       </div>
+    </div>
+  );
+}
+
+const showTime = (t: number) => (t < 0 ? `T${formatTime(t)}` : formatTime(t));
+
+/** The clock turned into a box: type a time and press Enter to go there, Esc to cancel. */
+function TimeEntry({ initial, onDone }: { initial: number; onDone: (t: number | null) => void }) {
+  const [text, setText] = useState(() => showTime(initial));
+  const [bad, setBad] = useState(false);
+  return (
+    <input
+      autoFocus
+      onFocus={(e) => e.target.select()}
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        setBad(false);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          const t = parseTime(text);
+          if (t === null) setBad(true);
+          else onDone(t);
+        } else if (e.key === 'Escape') {
+          // Cancel the entry without leaving show mode.
+          e.stopPropagation();
+          onDone(null);
+        }
+      }}
+      onBlur={() => onDone(null)}
+      aria-label="Go to time"
+      aria-invalid={bad}
+      placeholder="m:ss"
+      className={clsx(
+        'w-72 rounded-lg border-2 bg-slate-950 px-2 font-mono text-6xl text-white tabular-nums outline-none',
+        bad ? 'border-rose-500' : 'border-amber-400',
+      )}
+      data-testid="goto-time"
+    />
+  );
+}
+
+/** The whole show as a bar: scene bands, a tick per cue, and the clock. Click or drag to seek. */
+function Scrubber({
+  start,
+  end,
+  t,
+  cues,
+  scenes,
+  onSeek,
+}: {
+  start: number;
+  end: number;
+  t: number;
+  cues: TimedCue[];
+  scenes: Scene[];
+  onSeek: (t: number) => void;
+}) {
+  const span = end - start;
+  const pct = (sec: number) => `${((Math.min(Math.max(sec, start), end) - start) / span) * 100}%`;
+  const seekTo = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    onSeek(start + (Math.min(Math.max(e.clientX - r.left, 0), r.width) / r.width) * span);
+  };
+  return (
+    <div className="flex items-center gap-3">
+      <span className="w-20 text-right font-mono text-xs text-slate-500 tabular-nums">{showTime(start)}</span>
+      <div
+        role="slider"
+        aria-label="Show time"
+        aria-valuemin={start}
+        aria-valuemax={end}
+        aria-valuenow={Math.round(t * 10) / 10}
+        aria-valuetext={showTime(t)}
+        className="relative h-9 flex-1 cursor-pointer touch-none rounded-md bg-slate-900 select-none"
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          seekTo(e);
+        }}
+        onPointerMove={(e) => {
+          if (e.currentTarget.hasPointerCapture(e.pointerId)) seekTo(e);
+        }}
+        data-testid="show-scrubber"
+      >
+        {scenes.map((s) => (
+          <div
+            key={s.id}
+            className="absolute inset-y-0 opacity-30"
+            style={{ left: pct(s.startSec), width: `calc(${pct(s.endSec)} - ${pct(s.startSec)})`, background: s.color }}
+            title={s.name}
+          />
+        ))}
+        <div className="absolute inset-y-0 left-0 rounded-l-md bg-amber-500/25" style={{ width: pct(t) }} />
+        <div className="absolute inset-y-0 w-px bg-slate-500" style={{ left: pct(0) }} title="0:00" />
+        {cues.map((c) => (
+          <div
+            key={c.addressId}
+            className={clsx('absolute top-2 bottom-2 w-0.5 -translate-x-1/2', c.time <= t ? 'bg-slate-500' : 'bg-slate-200')}
+            style={{ left: pct(c.time), background: c.district && c.time > t ? districtColor(c.district) : undefined }}
+          />
+        ))}
+        <div className="absolute -inset-y-1 w-1 -translate-x-1/2 rounded bg-amber-400" style={{ left: pct(t) }} />
+      </div>
+      <span className="w-20 font-mono text-xs text-slate-500 tabular-nums">{formatTime(end)}</span>
     </div>
   );
 }
