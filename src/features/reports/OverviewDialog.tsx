@@ -78,7 +78,9 @@ export function OverviewDialog({ onClose }: { onClose: () => void }) {
             <input type="checkbox" checked disabled className="mt-0.5 h-4 w-4 accent-amber-500" />
             <span>
               <span className="text-sm font-medium text-slate-200">At a glance</span>
-              <span className="block text-xs text-slate-500">Run time, totals, shots and cost over time, and the site. Always included.</span>
+              <span className="block text-xs text-slate-500">
+                A cover page, shots and cost over time with the totals, then the scenes beside the site map. Always included.
+              </span>
             </span>
           </label>
           {sections.map((s) => (

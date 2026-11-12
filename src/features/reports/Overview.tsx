@@ -87,115 +87,231 @@ function Dot({ color, size = 10 }: { color: string; size?: number }) {
   return <span className="inline-block shrink-0 rounded-full" style={{ width: size, height: size, background: color }} />;
 }
 
-// ---------- page 1 ----------
+// ---------- pages 1–3: at a glance ----------
 
 function AtAGlance({ show, o, options }: { show: Show; o: ShowOverview; options: OverviewOptions }) {
+  return (
+    <>
+      <CoverPage show={show} o={o} />
+      <BuildPage show={show} o={o} options={options} />
+      <WherePage show={show} o={o} />
+    </>
+  );
+}
+
+/** The app's mark: a firework burst on an amber tile. */
+function Logo({ size = 44 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 48 48" width={size} height={size} role="img" aria-label="PatioPyro logo">
+      <rect width="48" height="48" rx="11" fill="#0f172a" />
+      {Array.from({ length: 12 }, (_, i) => {
+        const a = (i / 12) * Math.PI * 2;
+        const r1 = 6;
+        const r2 = i % 2 ? 15 : 18;
+        return (
+          <line
+            key={i}
+            x1={24 + Math.cos(a) * r1}
+            y1={24 + Math.sin(a) * r1}
+            x2={24 + Math.cos(a) * r2}
+            y2={24 + Math.sin(a) * r2}
+            stroke={i % 3 === 0 ? '#f43f5e' : i % 3 === 1 ? '#fbbf24' : '#38bdf8'}
+            strokeWidth="2.6"
+            strokeLinecap="round"
+          />
+        );
+      })}
+      <circle cx="24" cy="24" r="3" fill="#fbbf24" />
+    </svg>
+  );
+}
+
+/** Page 1: the brand, the show's name, when and where, how long, and what it's about. */
+function CoverPage({ show, o }: { show: Show; o: ShowOverview }) {
   const { meta } = show;
   const start = formatClock(meta.startTime);
   const end = formatClock(meta.startTime, o.durationSec);
   const byline = [formatShowDate(meta.date), meta.location.trim(), meta.designer.trim() && `Designed by ${meta.designer.trim()}`]
     .filter(Boolean)
     .join(' · ');
-  const u = show.settings.units;
 
   return (
-    <section data-testid="overview-glance">
-      <header className="flex items-end justify-between gap-8 border-b-2 border-zinc-900 pb-3">
-        <div className="flex flex-col gap-1">
-          <div className="text-xs font-semibold tracking-[0.14em] text-zinc-600 uppercase">Show overview</div>
-          <h1 className="text-[36px] leading-none font-bold">{meta.name}</h1>
-          {byline && <div className="text-[15px] text-zinc-700">{byline}</div>}
+    <section className="flex flex-col gap-10" data-testid="overview-glance">
+      <div className="flex items-center gap-3 border-b-2 border-zinc-900 pb-3" data-testid="overview-brand">
+        <Logo />
+        <div className="flex flex-col">
+          <span className="text-[26px] leading-none font-bold tracking-tight text-amber-600">PatioPyro</span>
+          <span className="text-xs font-semibold tracking-[0.14em] text-zinc-600 uppercase">Show overview</span>
+        </div>
+      </div>
+
+      <div className="flex items-end justify-between gap-10 pt-6">
+        <div className="flex min-w-0 flex-col gap-3">
+          <h1 className="text-[56px] leading-[1.05] font-bold">{meta.name}</h1>
+          {byline && <div className="text-lg text-zinc-700">{byline}</div>}
         </div>
         <div className="flex shrink-0 flex-col items-end">
-          <div className="text-[48px] leading-none font-bold tabular-nums" data-testid="overview-runtime">
+          <div className="text-[72px] leading-none font-bold tabular-nums" data-testid="overview-runtime">
             {formatTime(o.durationSec, 0)}
           </div>
-          <div className="text-[13px] text-zinc-700">
-            of fireworks{start && end && ` · starts ${start}, ends about ${end}`}
-          </div>
+          <div className="text-base text-zinc-700">of fireworks</div>
+          {start && end && <div className="text-base text-zinc-700">starts {start}, ends about {end}</div>}
         </div>
-      </header>
+      </div>
 
       {meta.description.trim() && (
-        <p className="mt-3 max-w-[75ch] text-base whitespace-pre-line text-zinc-800" data-testid="overview-description">
+        <p
+          className="max-w-[70ch] border-l-4 border-amber-500 pl-5 text-xl leading-relaxed whitespace-pre-line text-zinc-800"
+          data-testid="overview-description"
+        >
           {meta.description.trim()}
         </p>
       )}
 
-      <div className="mt-3.5 grid grid-cols-5 gap-3" data-testid="overview-stats">
-        <Tile label="Shots" value={count(o.shots)} />
-        <Tile label="Fireworks fired" value={count(o.pieces)} />
-        <Tile label="Cues" value={count(o.cues)} />
-        <Tile label="Firing positions" value={count(o.positions.length)} />
-        {options.cost ? (
-          <Tile label="Fireworks cost" value={dollars(o.cost)} />
-        ) : (
-          <Tile label="Busiest moment" value={count(o.peak?.shots ?? 0)} sub={`shots / ${o.binSec} s`} />
+      <div className="flex flex-wrap gap-x-8 gap-y-2 text-lg text-zinc-800">
+        <span>
+          <strong className="tabular-nums">{count(o.shots)}</strong> shots
+        </span>
+        <span>
+          <strong className="tabular-nums">{count(o.pieces)}</strong> fireworks
+        </span>
+        {o.scenes.length > 0 && (
+          <span>
+            <strong className="tabular-nums">{count(o.scenes.length)}</strong> {o.scenes.length === 1 ? 'scene' : 'scenes'}
+          </span>
+        )}
+        {o.largest && (
+          <span>
+            up to <strong>{o.largest}</strong>
+          </span>
         )}
       </div>
+    </section>
+  );
+}
 
-      {/* Left: how the show builds and its scenes. Right: the site, as big as the column allows. */}
-      <div className="avoid-break mt-3 grid grid-cols-2 gap-7">
-        <div className="flex min-w-0 flex-col gap-4">
-          <div>
-            <h2 className="text-xl font-bold">How the show builds</h2>
-            <div className="mb-1 text-xs text-zinc-600">
-              Shots and fireworks cost every {o.binSec} s{show.scenes.length > 0 && ', colored by the scene that fires them · bands: scenes'}
-            </div>
-            <BuildChart o={o} scenes={show.scenes} showPrices={options.cost} />
-          </div>
-          {o.scenes.length > 0 ? (
-            <div data-testid="overview-scene-list">
-              <h2 className="mb-1.5 text-xl font-bold">{plural(o.scenes.length, 'scene')}</h2>
-              {o.scenes.map((s) => (
-                <div
-                  key={s.scene.id}
-                  className="grid grid-cols-[14px_minmax(0,1fr)_88px_70px_90px] items-center gap-2.5 border-b border-zinc-200 py-1 text-sm"
-                >
-                  <span className="h-3.5 w-3.5 rounded-sm" style={{ background: s.scene.color }} />
-                  <span className="truncate font-semibold">{s.scene.name}</span>
-                  <span className="text-zinc-700 tabular-nums">{range(s.scene)}</span>
-                  <span className="text-right tabular-nums">{count(s.shots)}</span>
-                  <span className="h-2 overflow-hidden rounded bg-zinc-100">
-                    <span
-                      className="block h-full"
-                      style={{ width: `${o.shots ? (s.shots / o.shots) * 100 : 0}%`, background: s.scene.color }}
-                    />
-                  </span>
-                </div>
-              ))}
-              <div className="mt-1 text-xs text-zinc-600">Columns: time · shots · share of all shots</div>
-            </div>
-          ) : (
-            <div>
-              <h2 className="mb-1.5 text-xl font-bold">Most shots</h2>
-              {o.lineup
-                .flatMap((g) => g.rows)
-                .sort((a, b) => b.shots - a.shots)
-                .slice(0, 6)
-                .map((r) => (
-                  <div key={r.item.id} className="flex justify-between gap-3 border-b border-zinc-200 py-1.5 text-sm">
-                    <span>
-                      <span className="font-semibold">{r.item.name}</span>{' '}
-                      <span className="text-zinc-600">{describeProduct(r.item)}</span>
-                    </span>
-                    <span className="tabular-nums">{plural(r.shots, 'shot')}</span>
-                  </div>
-                ))}
-            </div>
-          )}
+/** The longest stretch, in seconds, of bins with nothing firing, between the first and last shot. */
+function longestLull(o: ShowOverview): number {
+  let best = 0;
+  let run = 0;
+  let started = false;
+  for (const b of o.bins) {
+    if (b.shots > 0) {
+      // Only a gap closed by a shot counts, not the time before the first or after the last.
+      if (started) best = Math.max(best, run);
+      started = true;
+      run = 0;
+    } else run++;
+  }
+  return best * o.binSec;
+}
+
+/** Share of all shots fired in the show's last minute: how big the finale lands. */
+function lastMinuteShare(o: ShowOverview): number | null {
+  if (o.durationSec < 120 || o.shots === 0) return null;
+  const from = o.durationSec - 60;
+  const shots = o.bins.reduce((n, b) => n + (b.startSec >= from ? b.shots : 0), 0);
+  return pctOf(shots, o.shots);
+}
+
+/** Page 2: shots and cost over time, full width, with the show's numbers. */
+function BuildPage({ show, o, options }: { show: Show; o: ShowOverview; options: OverviewOptions }) {
+  const minutes = o.durationSec / 60;
+  const lull = longestLull(o);
+  const finale = lastMinuteShare(o);
+  const u = show.settings.units;
+
+  return (
+    <section className="break-before" data-testid="overview-build">
+      <SectionTitle aside={`${formatTime(o.durationSec, 0)} of fireworks`}>How the show builds</SectionTitle>
+      <div className="avoid-break">
+        <div className="mb-1 text-xs text-zinc-600">
+          Shots and fireworks cost every {o.binSec} s{show.scenes.length > 0 && ', colored by the scene that fires them · bands: scenes'}
         </div>
-        <div className="flex min-w-0 flex-col" data-testid="overview-site">
-          <h2 className="mb-1.5 text-xl font-bold">Where it happens</h2>
-          <div className="relative min-h-60 flex-1 rounded-lg border border-zinc-300">
-            <SiteThumb show={show} className="absolute inset-1 h-[calc(100%-0.5rem)] w-[calc(100%-0.5rem)]" />
-          </div>
-          {o.nearestFt !== null && (
-            <div className="mt-1 text-xs text-zinc-600">
-              The audience is at least {formatLengthFt(o.nearestFt, u)} from the nearest firing position.
+        <BuildChart o={o} scenes={show.scenes} showPrices={options.cost} />
+      </div>
+
+      <div className="mt-5 grid grid-cols-5 gap-3" data-testid="overview-stats">
+        <Tile label="Shots" value={count(o.shots)} />
+        <Tile label="Fireworks fired" value={count(o.pieces)} />
+        <Tile label="Different products" value={count(o.products)} />
+        <Tile label="Cues" value={count(o.cues)} />
+        <Tile label="Firing positions" value={count(o.positions.length)} />
+        <Tile label="Busiest moment" value={count(o.peak?.shots ?? 0)} sub={`shots / ${o.binSec} s`} />
+        <Tile label="Average pace" value={minutes > 0 ? count(o.shots / minutes) : '0'} sub="shots / min" />
+        {finale !== null ? (
+          <Tile label="Last minute" value={`${Math.round(finale)}%`} sub="of all shots" />
+        ) : (
+          <Tile label="Scenes" value={count(o.scenes.length)} />
+        )}
+        {lull > 0 ? (
+          <Tile label="Longest quiet stretch" value={formatTime(lull, 0)} />
+        ) : (
+          <Tile label="Longest quiet stretch" value="None" sub="always firing" />
+        )}
+        {options.cost ? (
+          <Tile label="Fireworks cost" value={dollars(o.cost)} sub={minutes > 0 ? `${dollars(o.cost / minutes)} / min` : undefined} />
+        ) : o.largest ? (
+          <Tile label="Biggest effect" value={<span className="text-[20px]">{o.largest}</span>} />
+        ) : (
+          <Tile label="Closest audience" value={o.nearestFt !== null ? formatLengthFt(o.nearestFt, u) : '—'} />
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** Page 3: the scenes in order beside the site map, as big as the page allows. */
+function WherePage({ show, o }: { show: Show; o: ShowOverview }) {
+  const u = show.settings.units;
+  return (
+    <section className="break-before grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-8" data-testid="overview-where">
+      {o.scenes.length > 0 ? (
+        <div data-testid="overview-scene-list">
+          <SectionTitle>{plural(o.scenes.length, 'scene')}</SectionTitle>
+          {o.scenes.map((s) => (
+            <div
+              key={s.scene.id}
+              className="grid grid-cols-[14px_minmax(0,1fr)_88px_56px_70px] items-center gap-2.5 border-b border-zinc-200 py-1.5 text-sm"
+            >
+              <span className="h-3.5 w-3.5 rounded-sm" style={{ background: s.scene.color }} />
+              <span className="truncate font-semibold">{s.scene.name}</span>
+              <span className="text-zinc-700 tabular-nums">{range(s.scene)}</span>
+              <span className="text-right tabular-nums">{count(s.shots)}</span>
+              <span className="h-2 overflow-hidden rounded bg-zinc-100">
+                <span className="block h-full" style={{ width: `${pctOf(s.shots, o.shots)}%`, background: s.scene.color }} />
+              </span>
             </div>
-          )}
+          ))}
+          <div className="mt-1 text-xs text-zinc-600">Columns: time · shots · share of all shots</div>
         </div>
+      ) : (
+        <div>
+          <SectionTitle>Most shots</SectionTitle>
+          {o.lineup
+            .flatMap((g) => g.rows)
+            .sort((a, b) => b.shots - a.shots)
+            .slice(0, 8)
+            .map((r) => (
+              <div key={r.item.id} className="flex justify-between gap-3 border-b border-zinc-200 py-1.5 text-sm">
+                <span>
+                  <span className="font-semibold">{r.item.name}</span> <span className="text-zinc-600">{describeProduct(r.item)}</span>
+                </span>
+                <span className="tabular-nums">{plural(r.shots, 'shot')}</span>
+              </div>
+            ))}
+        </div>
+      )}
+      <div className="flex min-w-0 flex-col" data-testid="overview-site">
+        <SectionTitle>Where it happens</SectionTitle>
+        <div className="relative h-[140mm] rounded-lg border border-zinc-300">
+          <SiteThumb show={show} className="absolute inset-1 h-[calc(100%-0.5rem)] w-[calc(100%-0.5rem)]" />
+        </div>
+        {o.nearestFt !== null && (
+          <div className="mt-1 text-xs text-zinc-600">
+            The audience is at least {formatLengthFt(o.nearestFt, u)} from the nearest firing position.
+          </div>
+        )}
       </div>
     </section>
   );
@@ -322,7 +438,7 @@ function BuildChart({ o, scenes, showPrices }: { o: ShowOverview; scenes: Scene[
         sceneColor={sceneColor}
         peak={o.peak}
         empty={o.shots === 0 ? 'Nothing is timed yet. Give cues fire times on the Timeline.' : null}
-        height="h-[76px]"
+        height="h-40"
         testId="overview-peak-shots"
         callout={
           o.peak && (
@@ -353,7 +469,7 @@ function BuildChart({ o, scenes, showPrices }: { o: ShowOverview; scenes: Scene[
         sceneColor={sceneColor}
         peak={o.costPeak}
         empty={o.shots > 0 && o.cost === 0 ? 'No prices yet. Add them in Inventory.' : null}
-        height="h-16"
+        height="h-28"
         testId="overview-cost-chart"
         callout={
           o.costPeak && (

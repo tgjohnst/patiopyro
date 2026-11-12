@@ -56,7 +56,9 @@ test('show overview: new show fields, sections to choose, prints landscape acros
   // Cost over time sits under the shots, as a share while prices are off.
   await expect(page.getByTestId('overview-cost-peak')).toContainText(/Most spent at \d:\d\d/);
   await expect(page.getByTestId('overview-cost-peak')).toContainText('% of the cost');
-  await expect(page.getByTestId('overview-glance').getByTestId('site-thumb').locator('image')).toHaveAttribute('href', /^data:image\/png/);
+  await expect(page.getByTestId('overview-brand')).toContainText('PatioPyro');
+  await expect(page.getByTestId('overview-stats')).toContainText('Average pace');
+  await expect(page.getByTestId('overview-site').getByTestId('site-thumb').locator('image')).toHaveAttribute('href', /^data:image\/png/);
   await expect(page.getByTestId('overview-scene-list')).toContainText('4 scenes');
   await expect(page.getByTestId('overview-scene')).toHaveCount(4);
   await expect(page.getByTestId('overview-scene').first()).toContainText('Two crackling cakes to get everyone looking up.');
