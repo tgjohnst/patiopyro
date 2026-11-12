@@ -7,11 +7,15 @@ import { formatLengthIn, formatTime } from '../../lib/format';
 import type { CatalogItem, PlacedItem, Show } from '../../model/schema';
 import { useDerived, useShow } from '../../store/showStore';
 import { useUi } from '../../store/uiStore';
+import { Overview } from './Overview';
+import { overviewPageCss } from './overviewPage';
 
 /** Hidden on screen; becomes the whole page when printing. */
 export function PrintView() {
   const printView = useUi((u) => u.printView);
   const setPrintView = useUi((u) => u.setPrintView);
+  const overview = useUi((u) => u.overview);
+  const show = useShow((s) => s);
 
   useEffect(() => {
     if (!printView) return;
@@ -28,6 +32,13 @@ export function PrintView() {
     <div className="print-root bg-white text-black">
       {printView === 'worksheet' && <Worksheet />}
       {printView === 'plan' && <ShowPlan />}
+      {printView === 'overview' && (
+        <>
+          {/* Only while printing the overview, so the other documents keep their portrait pages. */}
+          <style>{overviewPageCss(show, overview)}</style>
+          <Overview options={overview} />
+        </>
+      )}
     </div>
   );
 }
@@ -46,11 +57,11 @@ function DocHeader({ show, title }: { show: Show; title: string }) {
 
 const box = <span className="mr-2 inline-block h-3.5 w-3.5 shrink-0 translate-y-0.5 border border-black" />;
 
-function SiteThumb({ show }: { show: Show }) {
+export function SiteThumb({ show, className = 'h-64 w-full' }: { show: Show; className?: string }) {
   const { siteMap: s, positions } = show;
   const pad = 4;
   return (
-    <svg viewBox={`${-pad} ${-pad} ${s.widthFt + pad * 2} ${s.heightFt + pad * 2}`} className="h-64 w-full">
+    <svg viewBox={`${-pad} ${-pad} ${s.widthFt + pad * 2} ${s.heightFt + pad * 2}`} className={className}>
       <rect x={0} y={0} width={s.widthFt} height={s.heightFt} fill="none" stroke="#999" strokeWidth={0.3} />
       <line x1={s.audience.x1} y1={s.audience.y1} x2={s.audience.x2} y2={s.audience.y2} stroke="#000" strokeWidth={0.6} strokeDasharray="2 1" />
       <text x={(s.audience.x1 + s.audience.x2) / 2} y={s.audience.y1 + 4} fontSize={2.4} textAnchor="middle">

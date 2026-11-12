@@ -22,6 +22,7 @@ const scene = (id: string, startSec: number, endSec: number): Scene => ({
   color: '#000000',
   startSec,
   endSec,
+  note: '',
 });
 
 const A = scene('a', 10, 20);

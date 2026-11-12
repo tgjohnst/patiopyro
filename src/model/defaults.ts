@@ -26,7 +26,18 @@ export function newPosition(index: number, siteWidthFt = 100): Position {
 export function createEmptyShow(): Show {
   return {
     schemaVersion: SCHEMA_VERSION,
-    meta: { name: 'Untitled show', date: '', location: '', notes: '' },
+    meta: {
+      name: 'Untitled show',
+      date: '',
+      location: '',
+      notes: '',
+      startTime: '',
+      designer: '',
+      description: '',
+      crew: '',
+      contact: '',
+      safetyEquipment: '',
+    },
     settings: {
       units: 'imperial',
       defaultFuseTypeId: DEFAULT_FUSE_TYPES[0].id,

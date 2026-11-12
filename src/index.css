@@ -44,6 +44,15 @@ body {
   display: none;
 }
 
+/* On screen, show where the overview's sections start a new page. */
+@media screen {
+  .overview .break-before {
+    margin-top: 2.5rem;
+    border-top: 2px dashed #d4d4d8;
+    padding-top: 2rem;
+  }
+}
+
 @media print {
   @page {
     margin: 12mm;

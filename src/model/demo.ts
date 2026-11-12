@@ -16,6 +16,12 @@ export function createDemoShow(): Show {
     location: 'Back yard',
     notes:
       'Demo show: chained cakes, a compound cake, shell and rocket racks fused in series, roman candles, and a linked finale cue on Bilusocn 4-cue receivers. The remote is set to 4 cues per district.',
+    startTime: '21:15',
+    designer: '',
+    description: 'About two and a half minutes of cakes, rockets and shells from three spots along the back fence. Bring a chair; we start once it is properly dark.',
+    crew: '2 people: one on the remote, one spotter',
+    contact: '',
+    safetyEquipment: 'Garden hose, fire extinguisher, bucket of water, first aid kit',
   };
 
   const [posA] = s.positions;
@@ -288,10 +294,10 @@ export function createDemoShow(): Show {
   };
   s.cueNotes = { [flatAddressId(5)]: 'Finale — both sides together' };
   s.scenes = [
-    { id: uid('scene'), name: 'Opening', color: SCENE_COLORS[0], startSec: 0, endSec: 40 },
-    { id: uid('scene'), name: 'Build', color: SCENE_COLORS[1], startSec: 42, endSec: 90 },
-    { id: uid('scene'), name: 'Crescendo', color: SCENE_COLORS[2], startSec: 98, endSec: 120 },
-    { id: uid('scene'), name: 'Finale', color: SCENE_COLORS[3], startSec: 125, endSec: 150 },
+    { id: uid('scene'), name: 'Opening', color: SCENE_COLORS[0], startSec: 0, endSec: 40, note: 'Two crackling cakes to get everyone looking up.' },
+    { id: uid('scene'), name: 'Build', color: SCENE_COLORS[1], startSec: 42, endSec: 90, note: 'Cakes trade off left and center, getting busier.' },
+    { id: uid('scene'), name: 'Crescendo', color: SCENE_COLORS[2], startSec: 98, endSec: 120, note: '' },
+    { id: uid('scene'), name: 'Finale', color: SCENE_COLORS[3], startSec: 125, endSec: 150, note: 'Every position at once.' },
   ];
 
   const supply = (name: string, qtyNeeded: number, qtyOwned: number, unitCost: number, notes = '') =>

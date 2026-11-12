@@ -763,6 +763,13 @@ export function TimelineTab() {
                 onChange={(t) => setSceneRange(selectedScene.id, selectedScene.startSec, t)}
               />
             </Field>
+            <Field label="Note" className="w-72" hint="Printed on the show overview">
+              <TextInput
+                value={selectedScene.note}
+                onChange={(note) => updateScene(selectedScene.id, { note })}
+                placeholder="What this part of the show is like"
+              />
+            </Field>
             <div className="max-w-xl text-xs text-slate-400" data-testid="scene-cues">
               <div className="mb-1 font-medium text-slate-300">
                 {sceneCues.length} {sceneCues.length === 1 ? 'cue' : 'cues'} in this scene

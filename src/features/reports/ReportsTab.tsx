@@ -6,6 +6,8 @@ import { formatLengthIn, formatMoney, formatTime } from '../../lib/format';
 import { useDerived, useShow } from '../../store/showStore';
 import { useUi } from '../../store/uiStore';
 import { exportCostCsv, exportCostXlsx } from './exports';
+import { Overview } from './Overview';
+import { OverviewDialog } from './OverviewDialog';
 import { ShowPlan, Worksheet } from './PrintViews';
 
 function Stat({ label, value, sub }: { label: string; value: ReactNode; sub?: ReactNode }) {
@@ -21,8 +23,9 @@ function Stat({ label, value, sub }: { label: string; value: ReactNode; sub?: Re
 export function ReportsTab() {
   const show = useShow((s) => s);
   const d = useDerived();
-  const { setPrintView, setShowMode } = useUi();
-  const [view, setView] = useState<'summary' | 'worksheet' | 'plan'>('summary');
+  const { setPrintView, setShowMode, overview } = useUi();
+  const [view, setView] = useState<'summary' | 'worksheet' | 'plan' | 'overview'>('summary');
+  const [overviewOpen, setOverviewOpen] = useState(false);
   const { totals, cost, issues, timing } = d;
   const u = show.settings.units;
   const fuseTotalIn = totals.fuse.reduce((n, f) => n + f.totalIn, 0);
@@ -36,6 +39,7 @@ export function ReportsTab() {
               ['summary', 'Summary'],
               ['worksheet', 'Setup worksheet'],
               ['plan', 'Show plan'],
+              ['overview', 'Show overview'],
             ] as const
           ).map(([id, label]) => (
             <button
@@ -52,6 +56,9 @@ export function ReportsTab() {
         </div>
         <Button onClick={() => setPrintView('worksheet')}>🖨 Worksheet PDF</Button>
         <Button onClick={() => setPrintView('plan')}>🖨 Show plan PDF</Button>
+        <Button onClick={() => setOverviewOpen(true)} title="A summary to share: run time, scenes, what's in the show">
+          🖨 Show overview PDF
+        </Button>
         <Button onClick={() => void exportCostXlsx(show, d)}>⬇ Cost spreadsheet (.xlsx)</Button>
         <Button onClick={() => exportCostCsv(show, d)}>⬇ Cost .csv</Button>
         <Button variant="ghost" onClick={() => saveShowFile(show)}>
@@ -65,6 +72,20 @@ export function ReportsTab() {
       {view === 'worksheet' && (
         <div className="overflow-hidden rounded-xl bg-white text-black shadow-xl">
           <Worksheet />
+        </div>
+      )}
+      {overviewOpen && <OverviewDialog onClose={() => setOverviewOpen(false)} />}
+      {view === 'overview' && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3 text-sm text-slate-400">
+            <span>Preview. Dashed lines mark where a new page starts.</span>
+            <Button className="ml-auto" onClick={() => setOverviewOpen(true)}>
+              Choose sections and print…
+            </Button>
+          </div>
+          <div className="overflow-hidden rounded-xl bg-white text-black shadow-xl">
+            <Overview options={overview} />
+          </div>
         </div>
       )}
       {view === 'plan' && (

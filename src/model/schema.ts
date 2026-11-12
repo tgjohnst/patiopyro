@@ -288,6 +288,8 @@ export const sceneSchema = z.object({
   color: z.string(),
   startSec: nonNeg,
   endSec: nonNeg,
+  /** What this part of the show is like, for the show overview. */
+  note: z.string().default(''),
 });
 
 export const showSchema = z.object({
@@ -297,6 +299,16 @@ export const showSchema = z.object({
     date: z.string(),
     location: z.string(),
     notes: z.string(),
+    /** Local start time as HH:MM, '' when not set. */
+    startTime: z.string().default(''),
+    /** Who designed the show, credited on the overview. */
+    designer: z.string().default(''),
+    /** A few lines for people reading the show overview. */
+    description: z.string().default(''),
+    /** Safety and site details for the overview. */
+    crew: z.string().default(''),
+    contact: z.string().default(''),
+    safetyEquipment: z.string().default(''),
   }),
   settings: settingsSchema,
   catalog: z.array(catalogItemSchema),

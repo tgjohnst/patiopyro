@@ -631,12 +631,12 @@ export function moveAddressPins(from: string, to: string) {
 export function addScene(startSec: number, endSec: number) {
   const id = uid('scene');
   mutate((s) => {
-    s.scenes.push({ id, name: nextSceneName(s.scenes), color: nextSceneColor(s.scenes), startSec, endSec });
+    s.scenes.push({ id, name: nextSceneName(s.scenes), color: nextSceneColor(s.scenes), startSec, endSec, note: '' });
   });
   return id;
 }
 
-export function updateScene(id: string, patch: Partial<Pick<Scene, 'name' | 'color'>>) {
+export function updateScene(id: string, patch: Partial<Pick<Scene, 'name' | 'color' | 'note'>>) {
   mutate((s) => {
     const scene = s.scenes.find((x) => x.id === id);
     if (scene) Object.assign(scene, patch);
