@@ -121,11 +121,30 @@ function Labels<T extends string>({ values, classes, square }: { values: T[]; cl
   );
 }
 
-function NameCell({ item, badge }: { item: Pick<CatalogItem, 'name' | 'url'>; badge?: ReactNode }) {
+function NameCell({
+  item,
+  badge,
+  onEdit,
+}: {
+  item: Pick<CatalogItem, 'name' | 'url'>;
+  badge?: ReactNode;
+  onEdit?: () => void;
+}) {
   const href = safeHref(item.url);
   return (
     <td className={clsx(td, 'font-medium')}>
       {item.name}
+      {onEdit && (
+        <button
+          type="button"
+          onClick={onEdit}
+          className="ml-1.5 rounded px-0.5 text-xs text-slate-500 hover:bg-slate-800 hover:text-amber-300"
+          title="Edit"
+          aria-label={`Edit ${item.name}`}
+        >
+          ✎
+        </button>
+      )}
       {href && (
         <a
           href={href}
@@ -185,7 +204,7 @@ export function InventoryTab() {
   const add = (kind: CatalogItem['kind']) => setEditing(newCatalogItem(kind));
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-4 p-4">
+    <div className="flex flex-col gap-4 p-4">
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-lg font-semibold">Inventory</h1>
         <div className="mr-auto flex gap-1">
@@ -223,7 +242,7 @@ export function InventoryTab() {
               const st = assortmentStats(a, catalog);
               return (
                 <tr key={a.id} className="hover:bg-slate-800/30">
-                  <NameCell item={a} />
+                  <NameCell item={a} onEdit={() => setEditingAssortment(a)} />
                   <td className={td}>{a.brand}</td>
                   <td className={td}>{formatMoney(a.cost)}</td>
                   <td className={td} title={st.cakes.map((c) => `${c.assortmentQty}× ${c.name}`).join('\n') || undefined}>
@@ -273,6 +292,7 @@ export function InventoryTab() {
                 <tr className="hover:bg-slate-800/30">
                   <NameCell
                     item={c}
+                    onEdit={() => setEditing(c)}
                     badge={
                       <>
                         {c.subCakes.length > 0 && (
@@ -355,7 +375,7 @@ export function InventoryTab() {
           <Table head={['Name', 'Brand', 'Effect', 'Shots', 'Duration', 'Lead', 'Pricing', 'Per candle', 'Cost / shot', 'Cost / sec', 'Used / owned', 'Notes', '']}>
             {candles.map((c) => (
               <tr key={c.id} className="hover:bg-slate-800/30">
-                <NameCell item={c} />
+                <NameCell item={c} onEdit={() => setEditing(c)} />
                 <td className={td}>{c.brand}</td>
                 <td className="max-w-64 truncate px-2 py-1.5 text-slate-400">{c.effect}</td>
                 <td className={td}>{c.shots}</td>
@@ -381,7 +401,7 @@ export function InventoryTab() {
           <Table head={['Name', 'Brand', 'Effect', 'Light→burst', 'Burst', 'Pricing', 'Per rocket', 'Used / owned', 'Notes', '']}>
             {rockets.map((r) => (
               <tr key={r.id} className="hover:bg-slate-800/30">
-                <NameCell item={r} />
+                <NameCell item={r} onEdit={() => setEditing(r)} />
                 <td className={td}>{r.brand}</td>
                 <td className="max-w-64 truncate px-2 py-1.5 text-slate-400">{r.effect}</td>
                 <td className={td}>{r.leadDelaySec}s</td>
@@ -404,7 +424,7 @@ export function InventoryTab() {
           <Table head={['Name', 'Brand', 'Effect', 'Size', 'Light→burst', 'Pricing', 'Per shell', 'Used / owned', 'Notes', '']}>
             {shells.map((s) => (
               <tr key={s.id} className="hover:bg-slate-800/30">
-                <NameCell item={s} />
+                <NameCell item={s} onEdit={() => setEditing(s)} />
                 <td className={td}>{s.brand}</td>
                 <td className="max-w-64 truncate px-2 py-1.5 text-slate-400">{s.effect}</td>
                 <td className={td}>{s.sizeIn}"</td>
@@ -427,7 +447,7 @@ export function InventoryTab() {
           <Table head={['Name', 'Layout', 'Tubes', 'Tube size', 'Spacing', 'Cost', 'Used / owned', 'Notes', '']}>
             {racks.map((r) => (
               <tr key={r.id} className="hover:bg-slate-800/30">
-                <NameCell item={r} />
+                <NameCell item={r} onEdit={() => setEditing(r)} />
                 <td className={td}>
                   {r.rows} × {r.cols}
                 </td>

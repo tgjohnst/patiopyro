@@ -57,7 +57,7 @@ test('cakes bought in an assortment are priced across the whole assortment', asy
   await page.screenshot({ path: `${SHOTS}/assortment-inventory.png` });
 
   // The assortment dialog lists its cakes and totals
-  await packRow.getByRole('button', { name: 'Edit' }).click();
+  await packRow.getByRole('button', { name: 'Edit', exact: true }).click();
   const members = page.getByTestId('assortment-members');
   await expect(members).toContainText('Pack Cake A');
   await expect(members).toContainText('3 cakes');
