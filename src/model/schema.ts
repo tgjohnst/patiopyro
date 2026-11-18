@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { enforceBlockProgramming } from './programming';
 import { CAKE_COLORS, CAKE_EFFECTS, CAKE_TAGS, CAKE_WEIGHT_CLASSES, LEGACY_DEFAULT_WORKSHEET_SUPPLIES } from './constants';
 
 export const SCHEMA_VERSION = 1;
@@ -369,6 +370,8 @@ export function parseShow(raw: unknown): Show {
     const issue = result.error.issues[0];
     throw new Error(`Invalid show file at ${issue.path.join('.')}: ${issue.message}`);
   }
+  // Block-coded receivers (Bilusocn) link only as whole receivers; older files may link single cues.
+  enforceBlockProgramming(result.data);
   return result.data;
 }
 

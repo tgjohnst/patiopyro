@@ -42,12 +42,13 @@ test('scenes: move, resize, rename, remove and create', async ({ page }) => {
     return page.getByLabel('Time (s)').inputValue();
   };
 
-  // Finale (125-150) holds Cue 5 at 125; moving it later carries the cue and leaves others alone.
+  // Finale (125-150) holds Cues 5 and 13 at 125; moving it later carries both and leaves others alone.
   await dragBy(page, page.getByTestId('scene-Finale'), 5 * PPS);
   await expect(startField).toHaveValue('130');
-  await expect(page.getByTestId('scene-cues')).toContainText('1 cue in this scene');
+  await expect(page.getByTestId('scene-cues')).toContainText('2 cues in this scene');
   await expect(page.getByTestId('scene-cues')).toContainText('Cue 5');
   expect(await cueTime('Cue 5 (2-1)')).toBe('130');
+  expect(await cueTime('Cue 13 (4-1)')).toBe('130');
   expect(await cueTime('Cue 15 (4-3)')).toBe('112');
 
   // Undo restores the scene and its cue in one step.

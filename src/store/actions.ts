@@ -3,6 +3,14 @@ import { itemUnitCost, normalizeCake, tubeCount } from '../model/catalog';
 import { MAX_POSITIONS, newPosition, uid } from '../model/defaults';
 import { endpointPlacedId, inKey, nodeKey, outKey, tubeKey } from '../model/endpoints';
 import { controllerFromPreset, presetById, type ModuleModel } from '../model/presets';
+import {
+  alignDown,
+  alignUp,
+  cueBlockSize,
+  enforceBlockProgramming,
+  restorePinTimes,
+  snapshotPinTimes,
+} from '../model/programming';
 import type {
   Assortment,
   Board,
@@ -40,35 +48,8 @@ function removeNodes(s: Show, ids: Set<string>) {
   removeSegmentsTouching(s, (k) => ids.has(k.slice(2)) && k.startsWith('n:'));
 }
 
-/** Pin -> fire time snapshot, so cue times survive addressing changes. */
-function pinTimes(s: Show) {
-  const out: { moduleId: string; pin: number; time?: number; note?: string }[] = [];
-  for (const n of s.fuseNodes) {
-    if (n.kind !== 'igniter') continue;
-    const mod = s.firing.modules.find((m) => m.id === n.moduleId);
-    if (!mod) continue;
-    const addr = pinAddress(s.firing.controller, mod, n.pin);
-    out.push({ moduleId: mod.id, pin: n.pin, time: s.cueTimes[addr], note: s.cueNotes[addr] });
-  }
-  return out;
-}
-
-function restorePinTimes(s: Show, snapshot: ReturnType<typeof pinTimes>) {
-  const times: Record<string, number> = {};
-  const notes: Record<string, string> = {};
-  for (const p of snapshot) {
-    const mod = s.firing.modules.find((m) => m.id === p.moduleId);
-    if (!mod) continue;
-    const addr = pinAddress(s.firing.controller, mod, p.pin);
-    if (p.time !== undefined) times[addr] = Math.min(times[addr] ?? Infinity, p.time);
-    if (p.note) notes[addr] = p.note;
-  }
-  s.cueTimes = times;
-  s.cueNotes = notes;
-}
-
 function withAddressingChange(s: Show, change: () => void) {
-  const snap = pinTimes(s);
+  const snap = snapshotPinTimes(s);
   change();
   restorePinTimes(s, snap);
 }
@@ -519,13 +500,15 @@ export function clearTubeFuse(placedId: string) {
 // ---------- firing system ----------
 
 export function setControllerPreset(presetId: string) {
-  mutate((s) =>
+  mutate((s) => {
     withAddressingChange(s, () => {
       const preset = presetById(presetId);
       s.firing.controller = controllerFromPreset(preset);
       for (const m of s.firing.modules) m.pinOverrides = {};
-    }),
-  );
+    });
+    // Block-coded receivers (Bilusocn) move onto block boundaries.
+    enforceBlockProgramming(s);
+  });
 }
 
 export function updateController(patch: Partial<Controller>) {
@@ -537,7 +520,9 @@ export function addModule(model: ModuleModel): string {
   mutate((s) => {
     const ctrl = s.firing.controller;
     const mods = s.firing.modules;
-    const nextFlat = mods.reduce((n, m) => Math.max(n, m.startCue + m.cueCount), 1);
+    const block = cueBlockSize(ctrl);
+    const end = mods.reduce((n, m) => Math.max(n, m.startCue + m.cueCount), 1);
+    const nextFlat = block ? alignUp(end, block) : end;
     const usedChannels = mods.flatMap((m) => m.bankChannels);
     let ch = usedChannels.length ? Math.max(...usedChannels) + 1 : 1;
     const bankChannels = Array.from({ length: model.banks }, () => Math.min(ch++, ctrl.channels));
@@ -563,6 +548,8 @@ export function updateModule(id: string, patch: Partial<FiringModule>) {
       if (!m) return;
       // Igniter wiring stays put when a module moves; validation flags position mismatches.
       Object.assign(m, patch);
+      const block = cueBlockSize(s.firing.controller);
+      if (block) m.startCue = alignDown(m.startCue, block);
     }),
   );
 }
@@ -577,11 +564,14 @@ export function deleteModule(id: string) {
   });
 }
 
-/** Link or unlink a pin to a controller address. Pass null to restore the default. */
+/**
+ * Link or unlink a pin to a controller address. Pass null to restore the default.
+ * Block-coded receivers (Bilusocn) can't remap single cues, so this does nothing there.
+ */
 export function setPinOverride(moduleId: string, pin: number, addressId: string | null) {
   mutate((s) => {
     const m = s.firing.modules.find((x) => x.id === moduleId);
-    if (!m) return;
+    if (!m || cueBlockSize(s.firing.controller)) return;
     const oldAddr = pinAddress(s.firing.controller, m, pin);
     const oldTime = s.cueTimes[oldAddr];
     if (addressId === null) delete m.pinOverrides[String(pin)];
@@ -589,6 +579,21 @@ export function setPinOverride(moduleId: string, pin: number, addressId: string 
     const newAddr = pinAddress(s.firing.controller, m, pin);
     if (s.cueTimes[newAddr] === undefined && oldTime !== undefined) s.cueTimes[newAddr] = oldTime;
   });
+}
+
+/**
+ * Code receivers to the given start cues (from suggestModuleProgramming) and drop single-cue
+ * links. Wired pins keep their fire times.
+ */
+export function applyModuleProgramming(starts: Record<string, number>) {
+  mutate((s) =>
+    withAddressingChange(s, () => {
+      for (const m of s.firing.modules) {
+        m.pinOverrides = {};
+        if (starts[m.id] !== undefined) m.startCue = starts[m.id];
+      }
+    }),
+  );
 }
 
 // ---------- cues ----------
@@ -610,11 +615,14 @@ export function setCueNote(addressId: string, note: string) {
   });
 }
 
-/** Re-point every wired pin currently firing on `from` so it fires on `to` (links the cues). */
+/**
+ * Re-point every wired pin currently firing on `from` so it fires on `to` (links the cues).
+ * Not available on block-coded receivers, which only link as whole receivers.
+ */
 export function moveAddressPins(from: string, to: string) {
   mutate((s) => {
-    if (from === to) return;
     const ctrl = s.firing.controller;
+    if (from === to || cueBlockSize(ctrl)) return;
     for (const n of s.fuseNodes) {
       if (n.kind !== 'igniter') continue;
       const m = s.firing.modules.find((x) => x.id === n.moduleId);

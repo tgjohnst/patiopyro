@@ -18,6 +18,11 @@ export interface FiringSystemPreset {
   maxIgnitersPerCue: number;
   /** Remote cues per district for flat systems with district switching (0 = none). */
   cuesPerDistrict?: number;
+  /**
+   * Flat systems whose receivers are coded as a whole to blocks of this many sequential remote
+   * cues (Bilusocn: 4, so a receiver starts at cue 1, 5, 9…). Single cues can't be linked.
+   */
+  cueBlockSize?: number;
   moduleModels: ModuleModel[];
   notes: string;
 }
@@ -84,13 +89,14 @@ export const FIRING_SYSTEM_PRESETS: FiringSystemPreset[] = [
     maxModules: null,
     igniterKind: 'ematch',
     maxIgnitersPerCue: 2,
+    cueBlockSize: 4,
     moduleModels: [
       { name: 'Bilusocn 4-cue receiver', cueCount: 4, banks: 1 },
       { name: 'Bilusocn 12-cue receiver', cueCount: 12, banks: 1 },
       { name: 'Bilusocn 24-cue receiver', cueCount: 24, banks: 1 },
     ],
     notes:
-      'Receivers are coded to remote cue numbers. Receivers coded to the same cue fire together.',
+      "Receivers are coded to blocks of 4 sequential remote cues (1–4, 5–8, 9–12…). Receivers coded to the same block fire together; single cues can't be linked.",
   },
   {
     id: 'p1200',

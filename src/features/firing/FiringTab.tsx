@@ -11,6 +11,7 @@ import {
   selectableAddresses,
 } from '../../model/addressing';
 import { FIRING_SYSTEM_PRESETS, presetById } from '../../model/presets';
+import { blockSpan, blockStarts, cueBlockSize } from '../../model/programming';
 import type { FiringModule } from '../../model/schema';
 import {
   addModule,
@@ -22,6 +23,7 @@ import {
 } from '../../store/actions';
 import { useDerived, useShow } from '../../store/showStore';
 import { formatTime } from '../../lib/format';
+import { ProgrammingDialog } from './ProgrammingDialog';
 
 export function FiringTab() {
   const ctrl = useShow((s) => s.firing.controller);
@@ -33,6 +35,8 @@ export function FiringTab() {
   const preset = presetById(ctrl.presetId);
   const [customCues, setCustomCues] = useState(12);
   const [pinEdit, setPinEdit] = useState<{ moduleId: string; pin: number } | null>(null);
+  const [planOpen, setPlanOpen] = useState(false);
+  const block = cueBlockSize(ctrl);
 
   /** address -> list of module pins resolving to it */
   const addressPins = useMemo(() => {
@@ -57,6 +61,13 @@ export function FiringTab() {
 
   const cueLabel = ctrl.addressing === 'channels' ? 'Cues per channel' : ctrl.addressing === 'flat' ? 'Controller cues' : 'Cues per module (max)';
   const linkedGroups = [...addressPins.entries()].filter(([, pins]) => pins.length > 1);
+  /** Block-coded receivers link as whole receivers: group those sharing a start cue. */
+  const linkedModules = useMemo(() => {
+    if (!block) return [];
+    const byStart = new Map<number, FiringModule[]>();
+    for (const m of modules) byStart.set(m.startCue, [...(byStart.get(m.startCue) ?? []), m]);
+    return [...byStart.entries()].filter(([, ms]) => ms.length > 1).sort((a, b) => a[0] - b[0]);
+  }, [block, modules]);
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-4 p-4">
@@ -162,6 +173,11 @@ export function FiringTab() {
         title="Firing modules"
         actions={
           <>
+            {block && (
+              <Button size="sm" variant="primary" onClick={() => setPlanOpen(true)} disabled={modules.length === 0}>
+                Suggest programming
+              </Button>
+            )}
             {preset.moduleModels.map((mm) => (
               <Button key={mm.name} size="sm" onClick={() => addModule(mm)} disabled={ctrl.maxModules !== null && modules.length >= ctrl.maxModules}>
                 + {mm.name}
@@ -199,30 +215,56 @@ export function FiringTab() {
         )}
       </Panel>
 
-      <Panel title="Linked cues">
-        {linkedGroups.length === 0 ? (
-          <p className="text-sm text-slate-500">
-            No linked cues. When module cues share a controller cue, one button fires all of them. Click a
-            module cue above to link it.
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-1 text-sm">
-            {linkedGroups.map(([addr, pins]) => (
-              <li key={addr} className="flex flex-wrap items-center gap-2">
-                <Badge tone="amber">{describeAddress(ctrl, modules, addr).label}</Badge>
-                <span className="text-slate-400">fires</span>
-                {pins.map((p) => (
-                  <Badge key={`${p.moduleId}:${p.pin}`}>
-                    {modules.find((m) => m.id === p.moduleId)?.name} cue {p.pin}
+      {block ? (
+        <Panel title="Linked receivers">
+          {linkedModules.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              No linked receivers. {ctrl.name} receivers link only as a whole: code two receivers to the same block
+              and each remote cue in it fires both. Single cues can't be linked.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-1 text-sm">
+              {linkedModules.map(([start, ms]) => (
+                <li key={start} className="flex flex-wrap items-center gap-2">
+                  <Badge tone="amber">
+                    Cues {start}–{start + blockSpan(Math.max(...ms.map((m) => m.cueCount)), block) - 1}
                   </Badge>
-                ))}
-              </li>
-            ))}
-          </ul>
-        )}
-      </Panel>
+                  <span className="text-slate-400">fire</span>
+                  {ms.map((m) => (
+                    <Badge key={m.id}>{m.name}</Badge>
+                  ))}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+      ) : (
+        <Panel title="Linked cues">
+          {linkedGroups.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              No linked cues. When module cues share a controller cue, one button fires all of them. Click a
+              module cue above to link it.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-1 text-sm">
+              {linkedGroups.map(([addr, pins]) => (
+                <li key={addr} className="flex flex-wrap items-center gap-2">
+                  <Badge tone="amber">{describeAddress(ctrl, modules, addr).label}</Badge>
+                  <span className="text-slate-400">fires</span>
+                  {pins.map((p) => (
+                    <Badge key={`${p.moduleId}:${p.pin}`}>
+                      {modules.find((m) => m.id === p.moduleId)?.name} cue {p.pin}
+                    </Badge>
+                  ))}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+      )}
 
       {pinEdit && <PinDialog {...pinEdit} onClose={() => setPinEdit(null)} />}
+      {planOpen && <ProgrammingDialog onClose={() => setPlanOpen(false)} />}
     </div>
   );
 }
@@ -290,6 +332,7 @@ function ModuleCard({
   const modules = useShow((s) => s.firing.modules);
   const pos = positions.find((p) => p.value === m.positionId);
   const posColor = useShow((s) => s.positions.find((p) => p.id === m.positionId)?.color ?? '#475569');
+  const block = cueBlockSize(ctrl);
 
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-900 p-3" data-testid={`module-${m.name}`}>
@@ -311,7 +354,18 @@ function ModuleCard({
             options={[{ value: '', label: '— unassigned —' }, ...positions]}
           />
         </Field>
-        {ctrl.addressing === 'flat' && (
+        {block && (
+          <Field label="Receiver coded to" className="w-36">
+            <Select
+              value={String(m.startCue)}
+              onChange={(v) => updateModule(m.id, { startCue: Number(v) })}
+              options={[...new Set([...blockStarts(ctrl, block), m.startCue])]
+                .sort((a, b) => a - b)
+                .map((c) => ({ value: String(c), label: `Cues ${c}–${c + blockSpan(m.cueCount, block) - 1}` }))}
+            />
+          </Field>
+        )}
+        {ctrl.addressing === 'flat' && !block && (
           <Field label="Receiver starts at cue" className="w-36">
             <NumberInput integer min={1} value={m.startCue} onChange={(startCue) => updateModule(m.id, { startCue })} />
           </Field>
@@ -378,7 +432,11 @@ function ModuleCard({
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-slate-200">#{pin}</span>
                 <span className="flex gap-0.5">
-                  {linked && <span title="Linked with another module cue">🔗</span>}
+                  {linked && (
+                    <span title={block ? 'Fires with another receiver in this block' : 'Linked with another module cue'}>
+                      🔗
+                    </span>
+                  )}
                   {overridden && <span className="text-sky-300" title="Manually mapped">✎</span>}
                 </span>
               </div>
@@ -411,6 +469,7 @@ function PinDialog({ moduleId, pin, onClose }: { moduleId: string; pin: number; 
   const igniters = fuseNodes.filter((n) => n.kind === 'igniter' && n.moduleId === moduleId && n.pin === pin);
   const effects = timing.effects.filter((e) => igniters.some((ig) => ig.id === e.igniterId));
   const overridden = m.pinOverrides[String(pin)] !== undefined;
+  const block = cueBlockSize(ctrl);
 
   return (
     <Modal title={`${m.name} · cue ${pin}`} onClose={onClose}>
@@ -419,6 +478,12 @@ function PinDialog({ moduleId, pin, onClose }: { moduleId: string; pin: number; 
           <p className="text-sm text-slate-400">
             {ctrl.name} fires each module cue on its own. To fire several together, give them the same
             time on the Timeline.
+          </p>
+        ) : block ? (
+          <p className="text-sm text-slate-400">
+            Fires on remote {describeAddress(ctrl, modules, addr).label}. {ctrl.name} receivers are coded as a whole to{' '}
+            {block} sequential cues (1–{block}, {block + 1}–{block * 2}…), so single cues can't be linked. To fire this
+            receiver with another, code both to the same block, or use Suggest programming.
           </p>
         ) : (
           <Field label="Fires on controller cue" hint="Pick a cue already used by another module cue to link them.">
@@ -429,7 +494,7 @@ function PinDialog({ moduleId, pin, onClose }: { moduleId: string; pin: number; 
             />
           </Field>
         )}
-        {overridden && (
+        {overridden && !block && (
           <Button size="sm" onClick={() => setPinOverride(moduleId, pin, null)}>
             Reset to default mapping
           </Button>

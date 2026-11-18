@@ -15,7 +15,7 @@ export function createDemoShow(): Show {
     date: '2026-07-04',
     location: 'Back yard',
     notes:
-      'Demo show: chained cakes, a compound cake, shell and rocket racks fused in series, roman candles, and a linked finale cue on Bilusocn 4-cue receivers. The remote is set to 4 cues per district.',
+      'Demo show: chained cakes, a compound cake, shell and rocket racks fused in series, roman candles, and a two-sided finale on Bilusocn 4-cue receivers coded to blocks of 4 remote cues. The remote is set to 4 cues per district.',
     startTime: '21:15',
     designer: '',
     description: 'About two and a half minutes of cakes, rockets and shells from three spots along the back fence. Bring a chair; we start once it is properly dark.',
@@ -212,7 +212,6 @@ export function createDemoShow(): Show {
   const m2 = mod('M2', posA.id, 5);
   const m3 = mod('M3', posB.id, 9);
   const m4 = mod('M4', posC.id, 13);
-  m4.pinOverrides['1'] = flatAddressId(5); // coded to cue 5 with M2 for the finale
   s.firing.modules = [m1, m2, m3, m4];
 
   const place = (catalogId: string, positionId: string, x: number, y: number, tubes?: (string | null)[]) => {
@@ -267,7 +266,7 @@ export function createDemoShow(): Show {
   seg(posB.id, igniter(posB.id, m3.id, 3, 880, 30), tubeKey(rr, 0), FAST, 1);
   [0, 1, 2].forEach((i) => seg(posB.id, tubeKey(rr, i), tubeKey(rr, i + 1), GREEN, 2));
 
-  // Right: the finale on M4 coded to the same remote cue as M2 cue 1, the compound cake, and a
+  // Right: the finale on M4 (fired with M2 cue 1 at the same moment), the compound cake, and a
   // pair of roman candles staggered by fuse length from one junction.
   const fin = place(finale.id, posC.id, 120, 240);
   seg(posC.id, igniter(posC.id, m4.id, 1, 140, 40), inKey(fin), GREEN, 2);
@@ -291,8 +290,12 @@ export function createDemoShow(): Show {
     [flatAddressId(14)]: 100,
     [flatAddressId(15)]: 112,
     [flatAddressId(5)]: 125,
+    [flatAddressId(13)]: 125,
   };
-  s.cueNotes = { [flatAddressId(5)]: 'Finale — both sides together' };
+  s.cueNotes = {
+    [flatAddressId(5)]: 'Finale — fire with cue 13',
+    [flatAddressId(13)]: 'Finale — fire with cue 5',
+  };
   s.scenes = [
     { id: uid('scene'), name: 'Opening', color: SCENE_COLORS[0], startSec: 0, endSec: 40, note: 'Two crackling cakes to get everyone looking up.' },
     { id: uid('scene'), name: 'Build', color: SCENE_COLORS[1], startSec: 42, endSec: 90, note: 'Cakes trade off left and center, getting busier.' },

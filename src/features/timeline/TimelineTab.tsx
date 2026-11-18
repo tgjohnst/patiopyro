@@ -6,6 +6,7 @@ import { MIN_SCENE_SEC, clampSceneRange, moveSceneIn, sceneAt, sceneGap, sceneRa
 import { binIntensity } from '../../engine/intensity';
 import { computeTiming, type EffectTiming } from '../../engine/timing';
 import { formatMoney, formatTime } from '../../lib/format';
+import { cueBlockSize } from '../../model/programming';
 import type { Show } from '../../model/schema';
 import {
   addScene,
@@ -298,7 +299,10 @@ export function TimelineTab() {
       const dt = Math.round(dx / pps / snap) * snap;
       let targetRow: string | null = null;
       const canRetarget =
-        groupBy === 'cue' && drag.addrs.length === 1 && show.firing.controller.addressing !== 'module';
+        groupBy === 'cue' &&
+        drag.addrs.length === 1 &&
+        show.firing.controller.addressing !== 'module' &&
+        !cueBlockSize(show.firing.controller);
       if (canRetarget && rowsRef.current && Math.abs(dy) > 12) {
         const top = rowsRef.current.getBoundingClientRect().top;
         let y = e.clientY - top;
@@ -336,7 +340,7 @@ export function TimelineTab() {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
     };
-  }, [drag, pps, snap, rows, groupBy, show.firing.controller.addressing]);
+  }, [drag, pps, snap, rows, groupBy, show.firing.controller]);
 
   const beginDrag = (e: ReactPointerEvent, addr: string) => {
     e.preventDefault();

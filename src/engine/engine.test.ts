@@ -422,7 +422,7 @@ describe('demo show', () => {
     expect(timing.effects.some((e) => e.sections.length === 3)).toBe(true);
     expect(timing.unscheduled).toEqual([]);
     const districts = buildCueList(show, timing).map((c) => c.district?.short);
-    expect(districts).toEqual(['D1', 'D1', 'D1', 'D1', 'D3', 'D3', 'D3', 'D4', 'D4', 'D2']);
+    expect(districts).toEqual(['D1', 'D1', 'D1', 'D1', 'D3', 'D3', 'D3', 'D4', 'D4', 'D2', 'D4']);
   });
 
   it('uses Bilusocn 4-cue receivers, no quickmatch, and loads cleanly', () => {
