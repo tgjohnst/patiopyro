@@ -8,15 +8,22 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
-import { Button } from '../../components/ui';
+import { Button, Select } from '../../components/ui';
+import { calloutsBetween } from '../../engine/callouts';
 import { buildCueList, type CueEntry } from '../../engine/cues';
+import { EMPTY_DRY_RUN, LATE_FLAG_SEC, MISS_GRACE_SEC, scoreDryRun, type DryRunLog } from '../../engine/dryRun';
 import { sceneAt, sceneChangeAt } from '../../engine/scenes';
+import { hasSweepMarks } from '../../engine/sweep';
 import type { EffectTiming } from '../../engine/timing';
 import { formatTime, parseTime } from '../../lib/format';
+import { playCallouts, stopSpeech, unlockSound, type SoundMode } from '../../lib/sound';
+import { useWakeLock } from '../../lib/wakeLock';
 import { districtColor, parseAddress, type District } from '../../model/addressing';
 import type { Position, Scene } from '../../model/schema';
+import { toggleDud, toggleMisfire } from '../../store/actions';
 import { useDerived, useShow } from '../../store/showStore';
 import { useUi } from '../../store/uiStore';
+import { DryRunResults } from './DryRunResults';
 
 const LEAD_IN = 10;
 /** Pressing previous cue within this many seconds of a cue goes to the one before it. */
@@ -37,6 +44,10 @@ export function ShowMode() {
   const show = useShow((s) => s);
   const { timing } = useDerived();
   const setShowMode = useUi((u) => u.setShowMode);
+  const setPrintView = useUi((u) => u.setPrintView);
+  const sound = useUi((u) => u.showSound);
+  const setSound = useUi((u) => u.setShowSound);
+  const wake = useWakeLock();
   const cues = useMemo(
     () => buildCueList(show, timing).filter((c): c is TimedCue => c.time !== null),
     [show, timing],
@@ -44,8 +55,13 @@ export function ShowMode() {
   const [running, setRunning] = useState(false);
   const [elapsed, setElapsed] = useState(-LEAD_IN);
   const [editingTime, setEditingTime] = useState(false);
+  /** Practice run: taps are scored against the plan and nothing can be marked as not going off. */
+  const [dryRun, setDryRun] = useState(false);
+  const [log, setLog] = useState<DryRunLog>(EMPTY_DRY_RUN);
   /** The clock: `from` seconds at `at` (performance.now), advancing while running. */
   const clock = useRef({ at: 0, from: -LEAD_IN, running: false });
+  /** Clock time callouts were last checked at; seeks move it without calling anything out. */
+  const calledTo = useRef(-LEAD_IN);
   const listRef = useRef<HTMLOListElement>(null);
   const end = Math.max(timing.showEndSec, cues[cues.length - 1]?.time ?? 0, 1);
 
@@ -58,21 +74,29 @@ export function ShowMode() {
     if (!running) return;
     let raf = 0;
     const tick = () => {
-      setElapsed(read());
+      const t = read();
+      playCallouts(calloutsBetween(cues, calledTo.current, t), sound);
+      calledTo.current = t;
+      setElapsed(t);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [running, read]);
+  }, [running, read, cues, sound]);
+
+  useEffect(() => stopSpeech, []);
 
   const play = useCallback(
     (on: boolean) => {
       const t = read();
       clock.current = { at: performance.now(), from: t, running: on };
+      calledTo.current = t;
+      if (on) unlockSound(sound);
+      else stopSpeech();
       setElapsed(t);
       setRunning(on);
     },
-    [read],
+    [read, sound],
   );
 
   /** Set the clock to an exact time (kept within the lead-in and show end), whether running or paused. */
@@ -80,6 +104,9 @@ export function ShowMode() {
     (t: number) => {
       const to = Math.min(Math.max(t, -LEAD_IN), end);
       clock.current = { ...clock.current, at: performance.now(), from: to };
+      calledTo.current = to;
+      // Going back in a dry run practises that part again: drop the taps after it.
+      setLog((l) => ({ presses: l.presses.filter((p) => p <= to), switches: l.switches.filter((p) => p <= to) }));
       setElapsed(to);
     },
     [end],
@@ -107,10 +134,23 @@ export function ShowMode() {
     seek(-LEAD_IN);
   }, [play, seek]);
 
+  const toggleDryRun = () => {
+    reset();
+    setLog(EMPTY_DRY_RUN);
+    setDryRun((v) => !v);
+  };
+  /** Dry run taps, at the clock time they happen. */
+  const tapFire = useCallback(() => setLog((l) => ({ ...l, presses: [...l.presses, read()] })), [read]);
+  const tapSwitch = useCallback(() => setLog((l) => ({ ...l, switches: [...l.switches, read()] })), [read]);
+
   const nextIdx = cues.findIndex((c) => c.time > elapsed);
   const next = nextIdx >= 0 ? cues[nextIdx] : null;
   const current = nextIdx === -1 ? cues[cues.length - 1] : cues[nextIdx - 1];
   const countdown = next ? next.time - elapsed : null;
+  const misfires = new Set(show.sweep.misfires);
+  const duds = new Set(show.sweep.duds);
+  const score = useMemo(() => (dryRun ? scoreDryRun(cues, log, elapsed) : null), [dryRun, cues, log, elapsed]);
+  const offsets = new Map(score?.cues.map((c) => [c.addressId, c]) ?? []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -142,11 +182,20 @@ export function ShowMode() {
       } else if (e.key === 'g' || e.key === 'G') {
         e.preventDefault();
         setEditingTime(true);
+      } else if (dryRun && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        tapFire();
+      } else if (dryRun && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        tapSwitch();
+      } else if (!dryRun && current && (e.key === 'm' || e.key === 'M')) {
+        e.preventDefault();
+        toggleMisfire(current.addressId);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [setShowMode, adjust, seek, play, nextCue, prevCue]);
+  }, [setShowMode, adjust, seek, play, nextCue, prevCue, dryRun, tapFire, tapSwitch, current]);
 
   // Keep the upcoming cue visible in the list.
   useEffect(() => {
@@ -163,8 +212,56 @@ export function ShowMode() {
   return (
     <div className="fixed inset-0 z-[60] flex flex-col bg-black text-white" data-testid="show-mode">
       <div className="flex flex-wrap items-center gap-3 border-b border-slate-800 px-6 py-3">
-        <span className="font-bold text-amber-400">SHOW MODE</span>
+        <span className={clsx('font-bold', dryRun ? 'text-sky-300' : 'text-amber-400')}>
+          {dryRun ? 'DRY RUN' : 'SHOW MODE'}
+        </span>
         <span className="text-slate-400">{show.meta.name}</span>
+        <span
+          className={clsx('text-xs', wake === 'on' ? 'text-emerald-400' : 'text-amber-300')}
+          title={
+            wake === 'on'
+              ? 'The screen stays on while Show mode is open.'
+              : wake === 'off'
+                ? 'The browser would not keep the screen on (battery saver?). Turn off auto-lock for the show.'
+                : 'This browser cannot keep the screen on. Turn off auto-lock for the show.'
+          }
+          data-testid="wake-lock"
+        >
+          {wake === 'on' ? '☀ Screen stays on' : '☾ Screen may sleep'}
+        </span>
+        <label className="flex items-center gap-1.5 text-xs text-slate-400">
+          Callouts
+          <Select
+            value={sound}
+            onChange={(v) => {
+              setSound(v as SoundMode);
+              unlockSound(v as SoundMode);
+            }}
+            options={[
+              { value: 'off', label: 'Off' },
+              { value: 'beeps', label: 'Beeps' },
+              { value: 'voice', label: 'Voice' },
+            ]}
+            aria-label="Cue callouts"
+          />
+        </label>
+        <Button
+          size="sm"
+          variant={dryRun ? 'primary' : 'secondary'}
+          onClick={toggleDryRun}
+          title="Practise the show: tap Fire and Switched as you would on the remote, and see how your timing compares"
+        >
+          {dryRun ? '✓ Dry run' : 'Dry run'}
+        </Button>
+        {!dryRun && (
+          <Button
+            size="sm"
+            onClick={() => setPrintView('sweep')}
+            title="Print what is still live after the show, by position, rack and tube"
+          >
+            🧹 Sweep list{hasSweepMarks(show) ? ` (${show.sweep.misfires.length + show.sweep.duds.length} marked)` : ''}
+          </Button>
+        )}
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <Button onClick={prevCue} title="Back to the start of this cue; press again for the cue before (P)">
             ⏮ Prev cue (P)
@@ -200,9 +297,43 @@ export function ShowMode() {
         <Scrubber start={-LEAD_IN} end={end} t={elapsed} cues={cues} scenes={show.scenes} onSeek={seek} />
         <div className="mt-1 text-xs text-slate-500">
           Drag or click the bar, or a cue in the list, to jump · ←/→ 1s · Shift 10s · Alt 0.1s · P/N previous/next
-          cue · G or click the clock to type a time · Home back to the start
+          cue · G or click the clock to type a time · Home back to the start ·{' '}
+          {dryRun ? 'F fire · S switched district' : 'M last cue didn’t fire'}
         </div>
       </div>
+
+      {dryRun && (
+        <div className="flex flex-wrap items-center gap-3 border-b border-sky-900 bg-sky-950/60 px-6 py-2" data-testid="dry-run-bar">
+          <span className="text-sm text-sky-100">
+            Practice only. Tap <b>Fire</b> each time you would press a remote button
+            {hasDistricts && (
+              <>
+                {' '}
+                and <b>Switched</b> when you change district
+              </>
+            )}
+            .
+          </span>
+          <div className="ml-auto flex gap-2">
+            {hasDistricts && (
+              <button
+                type="button"
+                onClick={tapSwitch}
+                className="h-12 rounded-lg bg-slate-700 px-5 text-lg font-bold hover:bg-slate-600"
+              >
+                ↔ Switched (S)
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={tapFire}
+              className="h-12 rounded-lg bg-sky-500 px-8 text-lg font-black text-slate-950 hover:bg-sky-400"
+            >
+              Fire (F)
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 p-6 lg:grid-cols-[1fr_380px]">
         <div className="flex min-h-0 flex-col items-center gap-4 overflow-y-auto">
@@ -278,17 +409,29 @@ export function ShowMode() {
               {cues.length ? (elapsed >= timing.showEndSec ? 'Show complete' : 'All cues fired') : 'No timed cues'}
             </div>
           )}
-          {current && next && (
-            <div className="text-xl text-slate-500">
-              Last: {current.label} at {formatTime(current.time)}
+          {current && current.time <= elapsed && (
+            <div className="flex flex-wrap items-center justify-center gap-3 text-xl text-slate-500">
+              <span>
+                Last: {current.label} at {formatTime(current.time)}
+              </span>
+              {!dryRun && (
+                <MisfireButton marked={misfires.has(current.addressId)} onClick={() => toggleMisfire(current.addressId)} big />
+              )}
             </div>
           )}
+
+          {score && <DryRunResults score={score} hasDistricts={hasDistricts} />}
 
           {hasDistricts && <DistrictTrack cues={cues} nextIdx={nextIdx} />}
 
           <div className="w-full max-w-5xl">
             <div className="mb-1 text-xs tracking-widest text-slate-500 uppercase">Going off now</div>
-            <NowFiring positions={show.positions} effects={timing.effects} t={elapsed} />
+            <NowFiring
+              positions={show.positions}
+              effects={timing.effects}
+              t={elapsed}
+              duds={dryRun ? null : duds}
+            />
           </div>
         </div>
 
@@ -332,14 +475,20 @@ export function ShowMode() {
                   <span className="w-16 font-mono tabular-nums">{formatTime(c.time)}</span>
                   <span className="font-semibold">{c.label}</span>
                   <span className="truncate text-sm text-slate-500">{posNames(c.positionIds)}</span>
-                  {c.district && (
-                    <span
-                      className={clsx('ml-auto rounded px-1.5 text-[11px] font-bold text-slate-950', past && 'opacity-50')}
-                      style={{ background: color }}
-                    >
-                      {c.district.short}
-                    </span>
-                  )}
+                  <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                    {dryRun && <OffsetBadge cue={offsets.get(c.addressId)} now={elapsed} />}
+                    {!dryRun && (past || misfires.has(c.addressId)) && (
+                      <MisfireButton marked={misfires.has(c.addressId)} onClick={() => toggleMisfire(c.addressId)} />
+                    )}
+                    {c.district && (
+                      <span
+                        className={clsx('rounded px-1.5 text-[11px] font-bold text-slate-950', past && 'opacity-50')}
+                        style={{ background: color }}
+                      >
+                        {c.district.short}
+                      </span>
+                    )}
+                  </span>
                 </li>
               </Fragment>
             );
@@ -351,6 +500,49 @@ export function ShowMode() {
 }
 
 const showTime = (t: number) => (t < 0 ? `T${formatTime(t)}` : formatTime(t));
+
+/** Mark a remote cue that didn't fire, for the sweep list. */
+function MisfireButton({ marked, onClick, big }: { marked: boolean; onClick: () => void; big?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        // In the cue list the row seeks on click; marking shouldn't move the clock.
+        e.stopPropagation();
+        onClick();
+      }}
+      className={clsx(
+        'rounded font-semibold whitespace-nowrap',
+        big ? 'px-3 py-1 text-base' : 'px-1.5 text-[11px]',
+        marked ? 'bg-rose-600 text-white' : 'border border-slate-700 text-slate-400 hover:border-rose-500 hover:text-rose-300',
+      )}
+      title={marked ? 'Marked: this cue didn’t fire. Click to unmark.' : 'Mark this cue as not fired (misfire)'}
+      aria-pressed={marked}
+    >
+      {marked ? '✗ Didn’t fire' : big ? 'Didn’t fire? (M)' : 'Didn’t fire?'}
+    </button>
+  );
+}
+
+/** How far off a dry-run press was: early, on time, late, or missed. */
+function OffsetBadge({ cue, now }: { cue: { offset: number | null; time: number } | undefined; now: number }) {
+  if (!cue) return null;
+  if (cue.offset === null) {
+    return cue.time + MISS_GRACE_SEC < now ? (
+      <span className="rounded bg-rose-600 px-1.5 text-[11px] font-bold text-white">Missed</span>
+    ) : null;
+  }
+  const late = cue.offset > LATE_FLAG_SEC;
+  return (
+    <span
+      className={clsx('rounded px-1.5 font-mono text-[11px] tabular-nums', late ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-200')}
+      data-testid="dry-offset"
+    >
+      {cue.offset >= 0 ? '+' : '−'}
+      {Math.abs(cue.offset).toFixed(1)}s
+    </span>
+  );
+}
 
 /** The clock turned into a box: type a time and press Enter to go there, Esc to cancel. */
 function TimeEntry({ initial, onDone }: { initial: number; onDone: (t: number | null) => void }) {
@@ -521,7 +713,18 @@ function DistrictTrack({ cues, nextIdx }: { cues: TimedCue[]; nextIdx: number })
 const MAX_LIT = 3;
 
 /** What is bursting at each position right now, plus fuse that is burning toward an effect. */
-function NowFiring({ positions, effects, t }: { positions: Position[]; effects: EffectTiming[]; t: number }) {
+function NowFiring({
+  positions,
+  effects,
+  t,
+  duds,
+}: {
+  positions: Position[];
+  effects: EffectTiming[];
+  t: number;
+  /** Effects marked as duds; null in a dry run, where nothing can be marked. */
+  duds: Set<string> | null;
+}) {
   return (
     <div
       className="grid gap-2"
@@ -554,10 +757,13 @@ function NowFiring({ positions, effects, t }: { positions: Position[]; effects: 
                 return (
                   <li key={e.key}>
                     <div className="flex items-baseline gap-2">
-                      <span className="truncate font-semibold text-white">{effectName(e)}</span>
+                      <span className={clsx('truncate font-semibold', duds?.has(e.key) ? 'text-rose-300 line-through' : 'text-white')}>
+                        {effectName(e)}
+                      </span>
                       <span className="ml-auto shrink-0 font-mono text-xs text-slate-400 tabular-nums">
                         {Math.ceil(e.endSec - t)}s
                       </span>
+                      {duds && <DudButton marked={duds.has(e.key)} onClick={() => toggleDud(e.key)} />}
                     </div>
                     {sections.length > 0 && (
                       <div className="truncate text-xs text-amber-300">↳ {sections.map((s) => s.name).join(' + ')}</div>
@@ -569,8 +775,11 @@ function NowFiring({ positions, effects, t }: { positions: Position[]; effects: 
                 );
               })}
               {lit.slice(0, MAX_LIT).map((e) => (
-                <li key={e.key} className="truncate text-xs text-slate-500">
-                  Fuse lit: {effectName(e)} in {(e.startSec - t).toFixed(1)}s
+                <li key={e.key} className="flex items-center gap-2 text-xs text-slate-500">
+                  <span className={clsx('truncate', duds?.has(e.key) && 'text-rose-300 line-through')}>
+                    Fuse lit: {effectName(e)} in {(e.startSec - t).toFixed(1)}s
+                  </span>
+                  {duds && <DudButton marked={duds.has(e.key)} onClick={() => toggleDud(e.key)} />}
                 </li>
               ))}
               {lit.length > MAX_LIT && <li className="text-xs text-slate-600">+{lit.length - MAX_LIT} more lit</li>}
@@ -579,5 +788,23 @@ function NowFiring({ positions, effects, t }: { positions: Position[]; effects: 
         );
       })}
     </div>
+  );
+}
+
+/** Mark an effect that was lit but didn't go off, for the sweep list. */
+function DudButton({ marked, onClick }: { marked: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={clsx(
+        'ml-auto shrink-0 rounded px-2 py-0.5 text-xs font-semibold',
+        marked ? 'bg-rose-600 text-white' : 'border border-slate-700 text-slate-300 hover:border-rose-500 hover:text-rose-300',
+      )}
+      title={marked ? 'Marked as a dud. Click to unmark.' : 'Mark as a dud: lit but didn’t go off'}
+      aria-pressed={marked}
+    >
+      {marked ? '✗ Dud' : 'Dud'}
+    </button>
   );
 }

@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { SoundMode } from '../lib/sound';
 
 export type Tab = 'inventory' | 'site' | 'positions' | 'firing' | 'timeline' | 'reports';
-export type PrintView = 'worksheet' | 'plan' | 'overview' | null;
+export type PrintView = 'worksheet' | 'plan' | 'overview' | 'sweep' | null;
 export type TimelineGraph = 'shots' | 'cost';
 
 /** What goes in the show overview PDF. The at-a-glance page is always included. */
@@ -39,6 +40,8 @@ interface UiState {
   graphBinSec: number;
   graphs: Record<TimelineGraph, boolean>;
   overview: OverviewOptions;
+  /** Show mode cue callouts on this device. */
+  showSound: SoundMode;
   setTab: (tab: Tab) => void;
   setPositionId: (id: string | null) => void;
   openRack: (placedId: string | null) => void;
@@ -48,6 +51,7 @@ interface UiState {
   setGraphBinSec: (sec: number) => void;
   toggleGraph: (g: TimelineGraph) => void;
   setOverview: (patch: Partial<OverviewOptions>) => void;
+  setShowSound: (mode: SoundMode) => void;
 }
 
 export const useUi = create<UiState>()(
@@ -62,6 +66,7 @@ export const useUi = create<UiState>()(
       graphBinSec: 5,
       graphs: { shots: true, cost: true },
       overview: DEFAULT_OVERVIEW,
+      showSound: 'off',
       setTab: (tab) => set({ tab }),
       setPositionId: (positionId) => set({ positionId }),
       openRack: (rackPlacedId) => set({ rackPlacedId }),
@@ -71,6 +76,7 @@ export const useUi = create<UiState>()(
       setGraphBinSec: (graphBinSec) => set({ graphBinSec }),
       toggleGraph: (g) => set((s) => ({ graphs: { ...s.graphs, [g]: !s.graphs[g] } })),
       setOverview: (patch) => set((s) => ({ overview: { ...s.overview, ...patch } })),
+      setShowSound: (showSound) => set({ showSound }),
     }),
     {
       name: 'patiopyro:ui',
@@ -81,6 +87,7 @@ export const useUi = create<UiState>()(
         graphBinSec: s.graphBinSec,
         graphs: s.graphs,
         overview: s.overview,
+        showSound: s.showSound,
       }),
       // Options added in later versions fall back to their defaults.
       merge: (persisted, current) => {

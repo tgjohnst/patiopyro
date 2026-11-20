@@ -1,8 +1,10 @@
 import clsx from 'clsx';
 import { useState, type ReactNode } from 'react';
 import { Badge, Button, Panel } from '../../components/ui';
+import { hasSweepMarks } from '../../engine/sweep';
 import { saveShowFile } from '../../lib/file';
 import { formatLengthIn, formatMoney, formatTime } from '../../lib/format';
+import { clearSweepMarks } from '../../store/actions';
 import { useDerived, useShow } from '../../store/showStore';
 import { useUi } from '../../store/uiStore';
 import { exportCostCsv, exportCostXlsx } from './exports';
@@ -56,6 +58,20 @@ export function ReportsTab() {
         </div>
         <Button onClick={() => setPrintView('worksheet')}>🖨 Worksheet PDF</Button>
         <Button onClick={() => setPrintView('plan')}>🖨 Show plan PDF</Button>
+        <Button
+          onClick={() => setPrintView('sweep')}
+          title="After the show: everything still live (duds, misfires and what they didn't light), by position, rack and tube"
+        >
+          🖨 Sweep list PDF
+        </Button>
+        {hasSweepMarks(show) && (
+          <Button
+            variant="ghost"
+            onClick={() => window.confirm('Clear the duds and misfires marked in Show mode?') && clearSweepMarks()}
+          >
+            Clear show-night marks ({show.sweep.misfires.length + show.sweep.duds.length})
+          </Button>
+        )}
         <Button onClick={() => setOverviewOpen(true)} title="A summary to share: run time, scenes, what's in the show">
           🖨 Show overview PDF
         </Button>

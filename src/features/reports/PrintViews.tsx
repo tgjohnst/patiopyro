@@ -9,6 +9,7 @@ import { useDerived, useShow } from '../../store/showStore';
 import { useUi } from '../../store/uiStore';
 import { Overview } from './Overview';
 import { overviewPageCss } from './overviewPage';
+import { SweepList } from './SweepList';
 
 /** Hidden on screen; becomes the whole page when printing. */
 export function PrintView() {
@@ -32,6 +33,7 @@ export function PrintView() {
     <div className="print-root bg-white text-black">
       {printView === 'worksheet' && <Worksheet />}
       {printView === 'plan' && <ShowPlan />}
+      {printView === 'sweep' && <SweepList />}
       {printView === 'overview' && (
         <>
           {/* Only while printing the overview, so the other documents keep their portrait pages. */}
@@ -43,7 +45,7 @@ export function PrintView() {
   );
 }
 
-function DocHeader({ show, title }: { show: Show; title: string }) {
+export function DocHeader({ show, title }: { show: Show; title: string }) {
   return (
     <header className="mb-4 border-b-2 border-black pb-2">
       <div className="text-xs tracking-widest text-gray-500 uppercase">PatioPyro · {title}</div>

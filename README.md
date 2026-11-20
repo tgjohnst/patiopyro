@@ -12,6 +12,8 @@ PatioPyro is a browser-only web app for planning 1.4G consumer fireworks shows. 
 
 There is no server. Your show autosaves in the browser, and you can save or open `.patiopyro.json` files to back up or share a show.
 
+Once you have opened it, PatioPyro works with no connection: it caches itself in the browser, and you can install it to your phone's home screen or as a desktop app. A new version takes over the next time you open it after closing every PatioPyro tab.
+
 ## Features
 
 - **Inventory**
@@ -59,6 +61,11 @@ There is no server. Your show autosaves in the browser, and you can save or open
   - **Cost spreadsheet** (`.xlsx` with cost, inventory, fuse and cue sheets, or `.csv`), including each firework's duration (burst time for shells and rockets), cost per shot and per second, and supplies.
   - **Show plan** (print / save as PDF): a large-type cue sheet with times, gaps and district switches.
   - **Show mode:** a full-screen countdown to the next cue for running the show. Shows what is going off at each position right now (including the active sub cake), jumps to the next cue (N), and shows each cue's district with a callout when it's time to switch.
+    - Keeps the screen awake while it is open, where the browser allows it, and says when it can't.
+    - Callouts, off, as beeps or spoken: a warning 10 s before each cue ("Cue 7 in 10"), a 3-2-1 count, a beep on the cue, and a district-switch alert as soon as the cue before a switch fires.
+    - Mark what didn't go off: a cue that didn't fire (M, or the button by the last cue or in the cue list), or a dud in what's going off now.
+    - **Sweep list** (print / save as PDF): everything still live after the show, by position, rack and tube. Duds, misfired cues, cakes fused after a dud cake that never lit, and items never connected to a timed cue. Also in Reports, where the marks can be cleared.
+    - **Dry run:** practise the show. Tap Fire (F) when you would press a remote button and Switched (S) when you change district; each cue shows how early or late you were, with the time you had for each district switch and how much of it you had to spare.
 
 Burn rates and firing-system specs are typical starting values. Time your own fuse and check your hardware's cue counts and igniter limits. PatioPyro is a planning aid: follow product labels, local laws and safe distances.
 

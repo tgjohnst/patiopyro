@@ -68,6 +68,7 @@ export function createEmptyShow(): Show {
     firing: { controller: controllerFromPreset(FIRING_SYSTEM_PRESETS[0]), modules: [] },
     cueTimes: {},
     cueNotes: {},
+    sweep: { misfires: [], duds: [] },
     scenes: [],
   };
 }

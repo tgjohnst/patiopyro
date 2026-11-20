@@ -293,6 +293,16 @@ export const sceneSchema = z.object({
   note: z.string().default(''),
 });
 
+/**
+ * What didn't go off on show night, marked in Show mode for the post-show sweep list.
+ * Misfires are remote cues that didn't fire; duds are effects (endpoint keys: a placed item's
+ * lead fuse or a rack tube) that were lit but didn't go off.
+ */
+export const sweepSchema = z.object({
+  misfires: z.array(z.string()).default([]),
+  duds: z.array(z.string()).default([]),
+});
+
 export const showSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
   meta: z.object({
@@ -327,6 +337,7 @@ export const showSchema = z.object({
   cueTimes: z.record(z.string(), z.number()),
   cueNotes: z.record(z.string(), z.string()),
   scenes: z.array(sceneSchema).default([]),
+  sweep: sweepSchema.default({ misfires: [], duds: [] }),
 });
 
 export type SubCake = z.infer<typeof subCakeSchema>;
@@ -351,6 +362,7 @@ export type Controller = z.infer<typeof controllerSchema>;
 export type FiringModule = z.infer<typeof moduleSchema>;
 export type Settings = z.infer<typeof settingsSchema>;
 export type Scene = z.infer<typeof sceneSchema>;
+export type Sweep = z.infer<typeof sweepSchema>;
 export type Show = z.infer<typeof showSchema>;
 
 /** Migrate older show files to the current schema, then validate. */

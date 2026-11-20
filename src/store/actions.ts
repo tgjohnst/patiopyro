@@ -634,6 +634,28 @@ export function moveAddressPins(from: string, to: string) {
   });
 }
 
+// ---------- show night: what didn't go off ----------
+
+const toggleIn = (list: string[], item: string) => {
+  const i = list.indexOf(item);
+  if (i >= 0) list.splice(i, 1);
+  else list.push(item);
+};
+
+/** Mark or unmark a remote cue that didn't fire. */
+export function toggleMisfire(addressId: string) {
+  mutate((s) => toggleIn(s.sweep.misfires, addressId));
+}
+
+/** Mark or unmark an effect (endpoint key) that was lit but didn't go off. */
+export function toggleDud(key: string) {
+  mutate((s) => toggleIn(s.sweep.duds, key));
+}
+
+export function clearSweepMarks() {
+  mutate((s) => void (s.sweep = { misfires: [], duds: [] }));
+}
+
 // ---------- scenes ----------
 
 export function addScene(startSec: number, endSec: number) {
