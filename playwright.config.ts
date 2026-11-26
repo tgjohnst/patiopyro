@@ -12,7 +12,23 @@ export default defineConfig({
     viewport: { width: 1600, height: 1000 },
     acceptDownloads: true,
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1600, height: 1000 } } }],
+  projects: [
+    {
+      name: 'chromium',
+      testIgnore: /readme-shots/,
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1600, height: 1000 } },
+    },
+    // README screenshots: only with `npm run shots`, never in the normal e2e run.
+    ...(process.env.SHOTS
+      ? [
+          {
+            name: 'readme-shots',
+            testMatch: /readme-shots/,
+            use: { ...devices['Desktop Chrome'], viewport: { width: 1600, height: 1000 } },
+          },
+        ]
+      : []),
+  ],
   webServer: {
     command: 'npx vite --port 5199 --strictPort',
     url: 'http://localhost:5199',

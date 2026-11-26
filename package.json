@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
+    "shots": "SHOTS=1 playwright test --project=readme-shots",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

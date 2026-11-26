@@ -14,6 +14,19 @@ There is no server. Your show autosaves in the browser, and you can save or open
 
 Once you have opened it, PatioPyro works with no connection: it caches itself in the browser, and you can install it to your phone's home screen or as a desktop app. A new version takes over the next time you open it after closing every PatioPyro tab.
 
+[![The position canvas: igniters, fuse runs, a cake board and a shell rack, with fire times on each cake](docs/screenshots/03-positions.png)](docs/TOUR.md#position-canvas)
+
+## Tour
+
+Each screen from the demo show, in the order you'd plan a show. Click one for the annotated version in the [tour](docs/TOUR.md).
+
+<table>
+  <tr><td width="33%" align="center"><a href="docs/TOUR.md#inventory"><img src="docs/screenshots/01-inventory.png" alt="Inventory"><br>Inventory</a></td><td width="33%" align="center"><a href="docs/TOUR.md#site-map"><img src="docs/screenshots/02-site-map.png" alt="Site map"><br>Site map</a></td><td width="33%" align="center"><a href="docs/TOUR.md#position-canvas"><img src="docs/screenshots/03-positions.png" alt="Position canvas"><br>Position canvas</a></td></tr>
+  <tr><td width="33%" align="center"><a href="docs/TOUR.md#rack-editor"><img src="docs/screenshots/04-rack-editor.png" alt="Rack editor"><br>Rack editor</a></td><td width="33%" align="center"><a href="docs/TOUR.md#firing-system"><img src="docs/screenshots/05-firing-system.png" alt="Firing system"><br>Firing system</a></td><td width="33%" align="center"><a href="docs/TOUR.md#timeline"><img src="docs/screenshots/06-timeline.png" alt="Timeline"><br>Timeline</a></td></tr>
+  <tr><td width="33%" align="center"><a href="docs/TOUR.md#reports"><img src="docs/screenshots/07-reports.png" alt="Reports"><br>Reports</a></td><td width="33%" align="center"><a href="docs/TOUR.md#setup-worksheet"><img src="docs/screenshots/08-setup-worksheet.png" alt="Setup worksheet"><br>Setup worksheet</a></td><td width="33%" align="center"><a href="docs/TOUR.md#show-overview"><img src="docs/screenshots/09-show-overview.png" alt="Show overview"><br>Show overview</a></td></tr>
+  <tr><td width="33%" align="center"><a href="docs/TOUR.md#show-mode"><img src="docs/screenshots/10-show-mode.png" alt="Show mode"><br>Show mode</a></td><td width="33%" align="center"><a href="docs/TOUR.md#dry-run"><img src="docs/screenshots/11-dry-run.png" alt="Dry run"><br>Dry run</a></td></tr>
+</table>
+
 ## Features
 
 - **Inventory**
@@ -60,6 +73,7 @@ Once you have opened it, PatioPyro works with no connection: it caches itself in
   - **Setup worksheet** (print / save as PDF): shopping list with fuse, igniters and the supplies from the inventory (with how many to buy), module map, and for each position a layout diagram drawn from the position canvas (boards to scale, items, igniters and fuse), a board list with what sits on each, placement checklists, sub cake breakdowns, a loading and fuse diagram for each rack (fuse type, fire direction and where fuse joins the rack) and step-by-step fuse chains.
   - **Cost spreadsheet** (`.xlsx` with cost, inventory, fuse and cue sheets, or `.csv`), including each firework's duration (burst time for shells and rockets), cost per shot and per second, and supplies.
   - **Show plan** (print / save as PDF): a large-type cue sheet with times, gaps and district switches.
+  - **Show overview** (print / save as PDF, portrait or landscape): a summary to share with guests, a venue or neighbors. Run time, how the show builds, and optional sections for each scene, what's in the show, cost, and safety and site.
   - **Show mode:** a full-screen countdown to the next cue for running the show. Shows what is going off at each position right now (including the active sub cake), jumps to the next cue (N), and shows each cue's district with a callout when it's time to switch.
     - Keeps the screen awake while it is open, where the browser allows it, and says when it can't.
     - Callouts, off, as beeps or spoken: a warning 10 s before each cue ("Cue 7 in 10"), a 3-2-1 count, a beep on the cue, and a district-switch alert as soon as the cue before a switch fires.
@@ -140,6 +154,14 @@ npx playwright show-report   # open the HTML report after a failure
 
 Screenshots of each screen are saved to `test-results/shots/`.
 
+### README screenshots
+
+The annotated screenshots in `docs/screenshots/` (used here and in [the tour](docs/TOUR.md)) come from `e2e/readme-shots.spec.ts`. It isn't part of `npm run e2e`. Regenerate them after a UI change with:
+
+```sh
+npm run shots
+```
+
 ### Lint and type-check
 
 ```sh
@@ -159,6 +181,7 @@ Before committing, run `npm run lint && npm test && npm run build && npm run e2e
 | `npm test`           | Unit tests (Vitest), single run                    |
 | `npm run test:watch` | Unit tests in watch mode                           |
 | `npm run e2e`        | End-to-end browser tests (Playwright)              |
+| `npm run shots`      | Regenerate the README screenshots                  |
 | `npm run lint`       | ESLint                                             |
 | `npm run format`     | Prettier                                           |
 
@@ -172,5 +195,6 @@ src/
   features/   inventory, site map, positions (React Flow + rack editor), firing system,
               timeline, reports (print views, exports, show mode), settings
   components/ Small UI kit
-e2e/          Playwright tests
+e2e/          Playwright tests (readme-shots.spec.ts makes the README screenshots)
+docs/         Tour and its screenshots
 ```
