@@ -1,6 +1,10 @@
-# patiopyro
+<p align="center">
+  <img src="public/icon.svg" alt="PatioPyro logo" width="120">
+</p>
 
-A show design application for backyard fireworks.
+<h1 align="center">patiopyro</h1>
+
+<p align="center">A show design application for backyard fireworks.</p>
 
 PatioPyro is a browser-only web app for planning 1.4G consumer fireworks shows. You can:
 - keep an inventory of cakes, shells and racks
